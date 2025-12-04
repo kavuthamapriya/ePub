@@ -1,11 +1,11 @@
-import React, { useEffect } from "react";
-import HTMLTagList from "./HTMLTagList";
+import React from "react";
+import { useConversionStore } from "../../store/useConversionStore";
 import TagRow from "./TagRow";
-import { useTagMappingStore } from "./TagMappingStore";
 
 const wrapperStyle = {
   display: "flex",
-  flex: 1,
+  height: "70vh",
+  backgroundColor: "#f3f4f6",
 };
 
 const leftStyle = {
@@ -30,27 +30,45 @@ const rightStyle = {
 };
 
 function MappingPage() {
-  const htmlTags = ["Ahead", "Dhead", "Par", "P.", "List", "ListItem"];
-  const setHTMLTags = useTagMappingStore((s) => s.setHTMLTags);
-  const completion = useTagMappingStore((s) => s.completion);
+  const accessibleHtml = useConversionStore((s) => s.accessibleHtml || "");
+  const htmlTags = useConversionStore((s) => s.htmlTags || []);
+  const tagMappings = useConversionStore((s) => s.tagMappings || {});
 
-  useEffect(() => {
-    setHTMLTags(htmlTags);
-  }, []);
+  const mappedCount = Object.keys(tagMappings).length;
+  const total = htmlTags.length || 1;
+  const completion = Math.round((mappedCount / total) * 100);
 
   return (
     <div style={wrapperStyle}>
+      {/* LEFT: tag list */}
       <section style={leftStyle}>
-        <HTMLTagList />
+        <h3>HTML Tags</h3>
+        {htmlTags.length === 0 ? (
+          <p style={{ color: "#6b7280" }}>
+            Run <strong>Convert</strong> first to load tags.
+          </p>
+        ) : (
+          <ul style={{ listStyle: "none", paddingLeft: 0 }}>
+            {htmlTags.map((tag) => (
+              <li key={tag}>{tag}</li>
+            ))}
+          </ul>
+        )}
       </section>
 
+      {/* MIDDLE: mapping rows */}
       <section style={middleStyle}>
         <h3 style={{ marginBottom: "8px" }}>Accessible Tags</h3>
-        {htmlTags.map((tag) => (
-          <TagRow key={tag} tag={tag} contextHTML={"<mock epub html>"} />
-        ))}
+        {htmlTags.length === 0 ? (
+          <p style={{ color: "#6b7280" }}>No tags available yet.</p>
+        ) : (
+          htmlTags.map((tag) => (
+            <TagRow key={tag} tag={tag} contextHTML={accessibleHtml} />
+          ))
+        )}
       </section>
 
+      {/* RIGHT: progress */}
       <section style={rightStyle}>
         <h3>Progress</h3>
         <div
@@ -71,6 +89,7 @@ function MappingPage() {
           ></div>
         </div>
         <p>{completion}% Complete</p>
+
         <button
           style={{
             marginTop: "20px",
