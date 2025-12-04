@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv
+venv/
+ENV/
+env/
+.env
+.env.local
+.env.*.local
+# Flask
+instance/
+.webassets-cache
+
+# Poetry
+poetry.lock
+
+# Node.js / NPM
+node_modules/
+npm-debug.log
+npm-error.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings
+*.sublime-project
+*.sublime-workspace
+
+# Vite
+dist/
+.vite/
+
+# Frontend Build
+*.tsbuildinfo
+.cache/
+.parcel-cache/
+
+# OS
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+logs/
+*.log
+lerna-debug.log*
+
+# Misc
+.cache
+.env
+.env.production.local
+.env.development.local
+.env.test.local
+.env.template
+
+# Uploads (if these are temporary files)
+# Uncomment the line below if you want to ignore uploaded files
+# backend/uploads/
+
+# Development
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Testing
+.tox/

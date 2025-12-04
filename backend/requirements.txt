@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-multipart
+ebooklib
+beautifulsoup4
+lxml
+PyMuPDF
+python-dotenv
+google-generativeai
