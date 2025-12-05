@@ -1,21 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import convert, qc, suggest
 
-app = FastAPI(title="Accessible EPUB Converter – Backend")
+from app.routes import convert as convert_router
+from app.routes import qc as qc_router  # 👈 new import
 
+
+app = FastAPI(title="Accessible EPUB System API")  # 👈 app must be defined first
+
+
+# Optional: CORS, keep or adjust as you already had it
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # or ["http://localhost:5173"] etc.
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(convert.router, prefix="/convert", tags=["Convert"])
-app.include_router(qc.router, prefix="/qc", tags=["QC"])
-app.include_router(suggest.router, prefix="/suggest", tags=["Suggest"])
+# 👇 Routers are included *after* app is defined
+app.include_router(convert_router.router, prefix="/convert", tags=["convert"])
+app.include_router(qc_router.router, prefix="/qc", tags=["qc"])  # 👈 QC endpoint
 
 
-@app.get("/")
-def home():
-    return {"status": "Backend OK"}
+@app.get("/health")
+async def health():
+    return {"status": "ok"}

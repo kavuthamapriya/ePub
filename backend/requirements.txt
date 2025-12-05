@@ -8,3 +8,6 @@ lxml
 PyMuPDF
 python-dotenv
 google-generativeai
+weasyprint
+python-multipart
+pydantic

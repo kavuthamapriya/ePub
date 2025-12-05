@@ -1,93 +1,75 @@
+// src/modules/qc/QCPage.jsx
 import React, { useState } from "react";
-import QCSummary from "./QCSummary";
-import QCCompareView from "./QCCompareView";
-import { runQC } from "./qcUtils";
+import { useConversionStore } from "../../store/useConversionStore";
 
-const wrapperStyle = {
-  display: "flex",
-  flex: 1,
-};
+export default function QCPage() {
+  const { epubFile, setQcReport, setQcLoading, setQcError, qcReport, qcLoading, qcError } = useConversionStore();
 
-const leftStyle = {
-  width: "25%",
-  padding: "0.75rem",
-  borderRight: "1px solid #e1e4e8",
-  backgroundColor: "#ffffff",
-};
+  const [localReport, setLocalReport] = useState(qcReport);
+  const [running, setRunning] = useState(false);
 
-const middleStyle = {
-  width: "35%",
-  padding: "0.75rem",
-  borderRight: "1px solid #e1e4e8",
-  backgroundColor: "#ffffff",
-  overflowY: "auto",
-};
-
-const rightStyle = {
-  flex: 1,
-  padding: "0.75rem",
-  backgroundColor: "#ffffff",
-  overflow: "auto",
-};
-
-function QCPage() {
-  const [epubHTML, setEpubHTML] = useState("");
-  const [pdfFile, setPdfFile] = useState(null);
-  const [qcReport, setQcReport] = useState(null);
-
-  async function handleRunQC() {
-    if (!epubHTML) {
-      alert("Load accessible HTML first");
+  async function runQc() {
+    if (!epubFile) {
+      alert("No EPUB loaded yet. Please upload and run Convert first.");
       return;
     }
-    const report = await runQC(epubHTML);
-    setQcReport(report);
+    setRunning(true);
+    setQcLoading(true);
+    setQcError(null);
+    try {
+      const form = new FormData();
+      form.append("epub_file", epubFile);
+
+      const res = await fetch("/qc/epub", { method: "POST", body: form });
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error("QC failed:", res.status, txt);
+        setQcError(txt);
+        alert(`QC failed: HTTP ${res.status}`);
+        setRunning(false);
+        setQcLoading(false);
+        return;
+      }
+      const json = await res.json();
+      setQcReport(json);
+      setLocalReport(json);
+      setRunning(false);
+      setQcLoading(false);
+      alert("QC completed (see report)");
+    } catch (e) {
+      console.error("QC error:", e);
+      setQcError(String(e));
+      alert("QC failed (see console)");
+      setRunning(false);
+      setQcLoading(false);
+    }
   }
 
   return (
-    <div style={wrapperStyle}>
-      <section style={leftStyle}>
-        <h3>Load Files</h3>
+    <div style={{ display: "flex", gap: 12, padding: 16 }}>
+      <div style={{ width: 320, background: "#fff", padding: 12, borderRadius: 8 }}>
+        <h3>QC Controls</h3>
+        <p style={{ color: "#374151" }}>Runs the DAISY Ace EPUB accessibility checker (WCAG / EPUB Accessibility).</p>
 
-        <label>Accessible EPUB HTML</label>
-        <textarea
-          style={{ width: "100%", height: "140px" }}
-          placeholder="Paste accessible HTML here"
-          onChange={(e) => setEpubHTML(e.target.value)}
-        ></textarea>
-
-        <label style={{ marginTop: "8px" }}>Reference PDF</label>
-        <input
-          type="file"
-          accept="application/pdf"
-          onChange={(e) => setPdfFile(e.target.files[0])}
-        />
-
-        <button
-          onClick={handleRunQC}
-          style={{
-            marginTop: "10px",
-            padding: "8px 12px",
-            backgroundColor: "#374151",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            width: "100%",
-          }}
-        >
-          Run QC
+        <button onClick={runQc} style={{ padding: "8px 12px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6 }}>
+          {running ? "Running QC..." : "Run QC on current EPUB"}
         </button>
-      </section>
 
-      <section style={middleStyle}>
-        <QCSummary report={qcReport} />
-      </section>
+        {qcError && <div style={{ marginTop: 8, color: "crimson" }}>QC Error: {String(qcError).slice(0, 200)}</div>}
+      </div>
 
-      <section style={rightStyle}>
-        <QCCompareView html={epubHTML} pdfFile={pdfFile} />
-      </section>
+      <div style={{ flex: 1, background: "#fff", padding: 12, borderRadius: 8, minHeight: 200 }}>
+        <h3>QC Summary</h3>
+        {!localReport && <p>No QC run yet.</p>}
+        {localReport && (
+          <>
+            <p>Violations: {localReport?.summary?.violations ?? "n/a"}</p>
+            <pre style={{ whiteSpace: "pre-wrap", maxHeight: 600, overflow: "auto", background: "#f8fafc", padding: 8 }}>
+              {JSON.stringify(localReport, null, 2)}
+            </pre>
+          </>
+        )}
+      </div>
     </div>
   );
 }
-
-export default QCPage;

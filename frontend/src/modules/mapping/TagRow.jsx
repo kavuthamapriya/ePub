@@ -1,84 +1,44 @@
+// src/modules/mapping/TagRow.jsx
 import React from "react";
 import { useConversionStore } from "../../store/useConversionStore";
 
+const rowStyle = { display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid #f1f5f9" };
+
 const ACCESSIBLE_OPTIONS = [
-  "P",
-  "H1",
-  "H2",
-  "H3",
-  "H4",
-  "H5",
-  "H6",
-  "UL",
-  "OL",
-  "LI",
-  "BLOCKQUOTE",
-  "FIGURE",
-  "FIGCAPTION",
-  "IGNORE",
+  "", "P", "H1", "H2", "H3", "H4", "H5", "H6", "FIGURE", "FIGCAPTION", "UL", "OL", "LI", "BLOCKQUOTE", "IMG", "ASIDE", "NAV", "SECTION"
 ];
 
-function TagRow({ tag, contextHTML }) {
-  const tagMappings = useConversionStore((s) => s.tagMappings || {});
+export default function TagRow({ tag }) {
+  const tagMappings = useConversionStore((s) => s.tagMappings);
   const setTagMapping = useConversionStore((s) => s.setTagMapping);
 
-  const value = tagMappings?.[tag] ?? "";
+  const current = tagMappings ? tagMappings[tag] || "" : "";
 
-  const handleChange = (e) => {
+  function onChange(e) {
     setTagMapping(tag, e.target.value);
-  };
-
-  function handleSuggest() {
-    console.log("AI Suggest for tag:", tag, "context length:", contextHTML?.length);
-    // later: call /suggest with { tag, html: contextHTML }
   }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1.5fr auto",
-        gap: "8px",
-        alignItems: "center",
-        marginBottom: "8px",
-      }}
-    >
-      <div>{tag}</div>
+    <div style={rowStyle}>
+      <div style={{ width: "36%", color: "#111827", fontWeight: 600 }}>{tag}</div>
 
-      <select
-        value={value}
-        onChange={handleChange}
-        style={{
-          padding: "4px 6px",
-          borderRadius: "4px",
-          border: "1px solid #d1d5db",
-        }}
-      >
-        <option value="">(choose)</option>
-        {ACCESSIBLE_OPTIONS.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
+      <div style={{ flex: 1 }}>
+        <select value={current} onChange={onChange} style={{ width: "240px", padding: 8 }}>
+          {ACCESSIBLE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt || "(choose)"}</option>)}
+        </select>
+      </div>
 
-      <button
-        type="button"
-        onClick={handleSuggest}
-        style={{
-          padding: "4px 8px",
-          borderRadius: "4px",
-          border: "none",
-          backgroundColor: "#111827",
-          color: "#fff",
-          fontSize: "12px",
-          cursor: "pointer",
-        }}
-      >
-        AI Suggest
-      </button>
+      <div>
+        <button onClick={() => {
+          // simple suggestion heuristics:
+          // if tag contains 'h' or 'title' suggest H2; if contains 'cover' suggest IMG or P.
+          const t = (tag || "").toLowerCase();
+          let suggestion = "P";
+          if (t.includes("title") || t.includes("head") || t.includes("h1") || t.includes("h2")) suggestion = "H2";
+          if (t.includes("cover") || t.includes("img") || t.includes("figure")) suggestion = "IMG";
+          setTagMapping(tag, suggestion);
+        }} style={{ padding: "6px 10px" }}>AI Suggest</button>
+      </div>
     </div>
   );
 }
-
-export default TagRow;

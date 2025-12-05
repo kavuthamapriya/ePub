@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 
 function EPUBViewer({ file }) {
   const viewerRef = useRef(null);
+  const bookRef = useRef(null); // keep track of current book
 
   useEffect(() => {
     if (!file) {
@@ -20,9 +21,23 @@ function EPUBViewer({ file }) {
       return;
     }
 
-    console.log("EPUBViewer: received file:", file.name, file.type, file.size);
+    // Clean up any previous book/rendition
+    if (bookRef.current) {
+      try {
+        bookRef.current.destroy && bookRef.current.destroy();
+      } catch (e) {
+        console.warn("EPUBViewer: error destroying previous book", e);
+      }
+      container.innerHTML = "";
+      bookRef.current = null;
+    }
 
-    container.innerHTML = "";
+    console.log(
+      "EPUBViewer: received file:",
+      file.name,
+      file.type,
+      file.size
+    );
 
     const reader = new FileReader();
 
@@ -35,6 +50,7 @@ function EPUBViewer({ file }) {
         );
 
         const book = window.ePub(arrayBuffer);
+        bookRef.current = book;
 
         const width = container.clientWidth || 600;
         const height = container.clientHeight || 800;
@@ -63,6 +79,21 @@ function EPUBViewer({ file }) {
     };
 
     reader.readAsArrayBuffer(file);
+
+    // Cleanup when component unmounts or file changes
+    return () => {
+      if (bookRef.current) {
+        try {
+          bookRef.current.destroy && bookRef.current.destroy();
+        } catch (e) {
+          console.warn("EPUBViewer: error destroying book on cleanup", e);
+        }
+        bookRef.current = null;
+      }
+      if (container) {
+        container.innerHTML = "";
+      }
+    };
   }, [file]);
 
   return (
