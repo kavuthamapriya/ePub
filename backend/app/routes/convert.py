@@ -1,5 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+# app/routes/convert.py
 from pathlib import Path
+
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 
 from app.config import UPLOAD_DIR
 from app.services.epub_service import extract_epub_html
@@ -10,7 +12,7 @@ from app.models.convert_models import ConvertResponse, AccessibleEPUB
 router = APIRouter()
 
 
-@router.post("", response_model=ConvertResponse)
+@router.post("/convert", response_model=ConvertResponse)
 async def convert_epub(
     publisher: str = Form(...),
     epub_file: UploadFile = File(...),
@@ -45,7 +47,7 @@ async def convert_epub(
                 detail=f"Failed to extract EPUB HTML: {e}",
             )
 
-        # 3) PDF text extraction (optional)
+        # 3) Optional PDF text
         pdf_text = ""
         if pdf_file:
             try:
@@ -58,29 +60,28 @@ async def convert_epub(
                 print("[convert] PDF extraction failed (non-fatal):", e)
                 pdf_text = ""
 
-        # 4) Build WCAG prompt
+        # 4) Build prompt for Gemini
         prompt = (
             "You are an accessibility expert.\n\n"
-            "Convert the following EPUB HTML into a clean, WCAG 2.1 AA compliant "
-            "accessible HTML fragment.\n\n"
-            "### Requirements:\n"
-            "- Use semantic HTML tags (<h1>-<h6>, <p>, <ul>, <ol>, <li>, <blockquote>, <figure>, etc.)\n"
+            "Convert the following EPUB HTML into a clean, WCAG 2.1 AA "
+            "compliant accessible HTML fragment.\n\n"
+            "Requirements:\n"
+            "- Use semantic HTML tags (<h1>-<h6>, <p>, <ul>, <ol>, <li>, "
+            "<blockquote>, <figure>, etc.)\n"
             "- Preserve heading hierarchy\n"
-            '- Do not invent alt text; use alt=\"\" for unknown images\n'
+            "- Do not invent alt text; use alt=\"\" for unknown images\n"
             "- Remove inline styles, scripts, EPUB-specific wrappers\n"
             "- DO NOT output <html>, <head>, or <body> tags\n\n"
-            "### Output JSON:\n"
+            "Output JSON shape:\n"
             "{\n"
-            '  "accessible_html": "string",\n'
-            '  "notes": ["string", ...],\n'
-            '  "percentage": 0-100\n'
+            '  \"accessible_html\": \"string\",\n'
+            '  \"notes\": [\"string\", ...],\n'
+            '  \"percentage\": 0-100\n'
             "}\n\n"
-            "### EPUB HTML:\n"
-            "```html\n"
+            "EPUB_HTML:\n```html\n"
             f"{html}\n"
             "```\n\n"
-            "### PDF TEXT:\n"
-            "```text\n"
+            "PDF_TEXT:\n```text\n"
             f"{pdf_text}\n"
             "```"
         )
@@ -97,7 +98,6 @@ async def convert_epub(
                 "percentage": 0,
             }
 
-        # Ensure dict
         if not isinstance(ai, dict):
             ai = {
                 "accessible_html": html,
@@ -105,23 +105,22 @@ async def convert_epub(
                 "percentage": 0,
             }
 
-        # 6) Extract fields safely
         accessible_html = ai.get("accessible_html") or html
         notes = ai.get("notes") or []
         percentage = ai.get("percentage") or 0
 
-        # 7) Build final response
-        return ConvertResponse(
+        result = ConvertResponse(
             accessible=AccessibleEPUB(
                 accessible_html=accessible_html,
                 notes=notes,
                 percentage=percentage,
             )
         )
+        print("[convert] Returning ConvertResponse")
+        return result
 
     except HTTPException:
         raise
-
     except Exception as e:
         print("[convert] Unexpected error:", e)
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")

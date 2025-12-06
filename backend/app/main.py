@@ -1,27 +1,23 @@
+# app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import convert as convert_router
-from app.routes import qc as qc_router  # 👈 new import
+from app.routes import qc as qc_router
 
+app = FastAPI(title="Accessible EPUB System")
 
-app = FastAPI(title="Accessible EPUB System API")  # 👈 app must be defined first
-
-
-# Optional: CORS, keep or adjust as you already had it
+# Allow Vite dev server
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or ["http://localhost:5173"] etc.
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 👇 Routers are included *after* app is defined
-app.include_router(convert_router.router, prefix="/convert", tags=["convert"])
-app.include_router(qc_router.router, prefix="/qc", tags=["qc"])  # 👈 QC endpoint
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+# Final paths:
+#   POST /api/convert
+#   POST /api/qc/epub
+app.include_router(convert_router.router, prefix="/api", tags=["convert"])
+app.include_router(qc_router.router, prefix="/api/qc", tags=["qc"])
