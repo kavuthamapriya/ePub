@@ -6,49 +6,97 @@ import { useConversionStore } from "../../store/useConversionStore";
 
 const headerHeight = 88;
 
-const containerStyle = {
+// ---------- Layout styles ----------
+const pageLayout = {
   display: "flex",
   gap: 20,
-  padding: 16,
+  padding: 20,
   boxSizing: "border-box",
   height: `calc(100vh - ${headerHeight}px)`,
+  background: "#f3f4f6",
   alignItems: "stretch",
 };
 
-const leftPanel = {
-  width: "22%",
-  minWidth: 240,
-  background: "#fff",
-  padding: 18,
-  borderRadius: 8,
+const cardBase = {
+  background: "#ffffff",
+  borderRadius: 12,
+  padding: 16,
   boxSizing: "border-box",
-  overflow: "auto",
+  boxShadow: "0 1px 3px rgba(15,23,42,0.08)",
+};
+
+const leftPanel = {
+  ...cardBase,
+  width: 280,
+  minWidth: 260,
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
 };
 
 const middlePanel = {
+  ...cardBase,
   flex: 1,
-  background: "#fff",
-  padding: 12,
-  borderRadius: 8,
-  boxSizing: "border-box",
   display: "flex",
   flexDirection: "column",
-  gap: 8,
+  gap: 12,
 };
 
 const rightPanel = {
+  ...cardBase,
   width: "32%",
   minWidth: 340,
-  background: "#fff",
-  padding: 12,
-  borderRadius: 8,
-  boxSizing: "border-box",
   display: "flex",
   flexDirection: "column",
-  gap: 8,
+  gap: 12,
 };
 
-// ---- helper: extract unique semantic tags from HTML ----
+const fieldGroup = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+const labelStyle = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#111827",
+};
+
+const hintText = {
+  fontSize: 11,
+  color: "#6b7280",
+};
+
+const textInput = {
+  width: "100%",
+  padding: "8px 10px",
+  borderRadius: 8,
+  border: "1px solid #d1d5db",
+  fontSize: 13,
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+const fileInput = {
+  width: "100%",
+  fontSize: 13,
+};
+
+const convertButton = (loading, enabled) => ({
+  width: "100%",
+  padding: "10px 12px",
+  borderRadius: 999,
+  border: "none",
+  fontSize: 14,
+  fontWeight: 600,
+  color: "#ffffff",
+  backgroundColor: !enabled ? "#9ca3af" : loading ? "#1d4ed8" : "#2563eb",
+  cursor: !enabled ? "not-allowed" : loading ? "wait" : "pointer",
+  transition: "background-color 0.15s ease",
+});
+
+// ---------- Helper: extract unique semantic tags from HTML ----------
 function extractSemanticTagsFromHtml(htmlString) {
   if (!htmlString) return [];
 
@@ -93,8 +141,8 @@ export default function ConvertPage() {
     setEpubFile,
     setPdfFile,
     setAccessibleHtml,
-    setHtmlTags,
-    resetMappings,
+    setHtmlTags,      // <-- from your store
+    resetMappings,    // <-- from your store
   } = useConversionStore();
 
   const [localEpub, setLocalEpub] = useState(epubFile);
@@ -107,8 +155,8 @@ export default function ConvertPage() {
   }, [epubFile, pdfFile]);
 
   async function handleConvert() {
-    if (!localEpub) {
-      alert("Upload EPUB first");
+    if (!localEpub || loading) {
+      alert("Upload an EPUB file first.");
       return;
     }
 
@@ -129,7 +177,7 @@ export default function ConvertPage() {
       if (!res.ok) {
         const txt = await res.text();
         console.error("Convert failed. HTTP", res.status, txt);
-        alert(`Convert failed: HTTP ${res.status} — see console for details`);
+        alert(`Convert failed: HTTP ${res.status} — see console for details.`);
         return;
       }
 
@@ -139,7 +187,7 @@ export default function ConvertPage() {
       const rawHtml = data?.accessible?.accessible_html ?? "";
       setAccessibleHtml(rawHtml);
 
-      // reset old mappings & extract new tags
+      // 🔁 reset old mapping + extract tags for Tag Mapping page
       resetMappings();
       const tags = extractSemanticTagsFromHtml(rawHtml);
       console.log("ConvertPage: extracted semantic tags:", tags);
@@ -148,133 +196,182 @@ export default function ConvertPage() {
       alert("Convert succeeded");
     } catch (err) {
       console.error("ConvertPage: error (network or JS):", err);
-      alert("Convert failed: unexpected error (see console)");
+      alert("Convert failed: unexpected error (see console).");
     } finally {
       setLoading(false);
     }
   }
 
+  const canConvert = !!localEpub;
+
   return (
-    <div style={containerStyle}>
-      {/* LEFT: controls */}
+    <div style={pageLayout}>
+      {/* LEFT: Controls */}
       <aside style={leftPanel}>
-        <h3>Controls</h3>
+        <div>
+          <h3 style={{ margin: 0, marginBottom: 4 }}>Controls</h3>
+          <p style={{ ...hintText, marginTop: 2 }}>
+            Upload an EPUB (and optional reference PDF), then run Convert.
+          </p>
+        </div>
 
-        <label>Publisher</label>
-        <input
-          value={publisher}
-          onChange={(e) => setPublisher(e.target.value)}
-          style={{ width: "100%", marginBottom: 8 }}
-        />
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Publisher</label>
+          <input
+            style={textInput}
+            value={publisher}
+            onChange={(e) => setPublisher(e.target.value)}
+            placeholder="e.g. Boydell & Brewer"
+          />
+        </div>
 
-        <label>EPUB File</label>
-        <input
-          type="file"
-          accept=".epub"
-          onChange={(e) => {
-            const f = e.target.files[0];
-            setLocalEpub(f);
-            setEpubFile(f);
-          }}
-        />
+        <div style={fieldGroup}>
+          <label style={labelStyle}>EPUB File</label>
+          <input
+            type="file"
+            accept=".epub"
+            style={fileInput}
+            onChange={(e) => {
+              const file = e.target.files[0];
+              setLocalEpub(file || null);
+              setEpubFile(file || null);
+            }}
+          />
+          <span style={hintText}>
+            Required. This EPUB will be analyzed and converted.
+          </span>
+        </div>
 
-        <label style={{ marginTop: 10 }}>Reference PDF</label>
-        <input
-          type="file"
-          accept="application/pdf"
-          onChange={(e) => {
-            const f = e.target.files[0];
-            setLocalPdf(f);
-            setPdfFile(f);
-          }}
-        />
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Reference PDF (optional)</label>
+          <input
+            type="file"
+            accept="application/pdf"
+            style={fileInput}
+            onChange={(e) => {
+              const file = e.target.files[0];
+              setLocalPdf(file || null);
+              setPdfFile(file || null);
+            }}
+          />
+          <span style={hintText}>
+            Optional visual reference only — shown on the right.
+          </span>
+        </div>
 
         <button
           onClick={handleConvert}
-          style={{
-            marginTop: 14,
-            padding: 10,
-            background: "#2563eb",
-            color: "#fff",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-            width: "100%",
-          }}
+          disabled={!canConvert || loading}
+          style={convertButton(loading, canConvert)}
         >
-          {loading ? "Converting..." : "Convert"}
+          {loading ? "Converting…" : "Convert"}
         </button>
+
+        {!canConvert && (
+          <div style={{ ...hintText, marginTop: 4 }}>
+            Upload an EPUB file above to enable Convert.
+          </div>
+        )}
       </aside>
 
       {/* MIDDLE: EPUB preview */}
       <main style={middlePanel}>
-        <h3 style={{ margin: 0 }}>EPUB Preview</h3>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+          }}
+        >
+          <h3 style={{ margin: 0 }}>EPUB Preview</h3>
+          {localEpub && (
+            <span style={hintText}>
+              {localEpub.name} · {(localEpub.size / 1024 / 1024).toFixed(2)} MB
+            </span>
+          )}
+        </div>
+
         <div
           style={{
             flex: 1,
-            minHeight: 500,
-            border: "1px solid #e6e8eb",
-            borderRadius: 6,
+            minHeight: 420,
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
             padding: 8,
             overflow: "auto",
+            background: "#f9fafb",
           }}
         >
           {localEpub ? (
             <EPUBViewer file={localEpub} mode="scrolled" />
           ) : (
-            <div style={{ color: "#777" }}>Upload EPUB to preview</div>
+            <div style={{ color: "#6b7280", fontSize: 13 }}>
+              No EPUB selected. Choose an EPUB file in the Controls panel to
+              see a live preview here.
+            </div>
           )}
         </div>
       </main>
 
-      {/* RIGHT: Accessible HTML source & PDF preview */}
+      {/* RIGHT: PDF + Accessible HTML source */}
       <aside style={rightPanel}>
         <h3 style={{ margin: 0 }}>Accessible HTML (Source)</h3>
 
-        {/* PDF preview box */}
+        {/* PDF preview */}
         <div
           style={{
             height: 220,
-            border: "1px solid #e6e8eb",
-            borderRadius: 6,
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
             overflow: "hidden",
+            background: "#f9fafb",
             padding: 6,
           }}
         >
           {localPdf ? (
             <PDFViewer file={localPdf} />
           ) : (
-            <div style={{ color: "#777" }}>Upload a PDF to preview</div>
+            <div style={{ ...hintText, padding: 10 }}>
+              Upload a reference PDF in the Controls panel to preview it here.
+            </div>
           )}
         </div>
 
-        {/* HTML source */}
+        {/* HTML source box */}
         <div
           style={{
             flex: 1,
             minHeight: 260,
-            border: "1px solid #e6e8eb",
-            borderRadius: 6,
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
             padding: 8,
             overflow: "auto",
-            background: "#fafafa",
+            background: "#0b1120",
           }}
         >
-          <textarea
-            value={accessibleHtml}
-            readOnly
-            style={{
-              width: "100%",
-              height: "100%",
-              boxSizing: "border-box",
-              border: "none",
-              background: "transparent",
-              resize: "none",
-              fontFamily: "monospace",
-              fontSize: 12,
-              lineHeight: 1.4,
-            }}
-          />
+          {accessibleHtml ? (
+            <textarea
+              value={accessibleHtml}
+              readOnly
+              style={{
+                width: "100%",
+                height: "100%",
+                boxSizing: "border-box",
+                border: "none",
+                background: "transparent",
+                color: "#e5e7eb",
+                fontFamily:
+                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                fontSize: 12,
+                lineHeight: 1.4,
+                resize: "none",
+              }}
+            />
+          ) : (
+            <div style={{ ...hintText, color: "#9ca3af" }}>
+              Accessible HTML will appear here after you run <b>Convert</b>.
+            </div>
+          )}
         </div>
       </aside>
     </div>

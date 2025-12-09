@@ -2,82 +2,77 @@
 from fastapi import APIRouter, HTTPException, Body
 from pathlib import Path
 import tempfile
-import subprocess
+import re
+
+import fitz  # PyMuPDF
 
 router = APIRouter()
 
 
+def html_to_text(html: str) -> str:
+    """
+    Convert HTML into reasonably readable plain text.
+    Tries BeautifulSoup if available; otherwise falls back to
+    stripping tags with a simple regex.
+    """
+    try:
+        from bs4 import BeautifulSoup  # type: ignore
+        soup = BeautifulSoup(html, "html.parser")
+        # Use newlines between blocks so the PDF isn't one long line
+        return soup.get_text(separator="\n")
+    except Exception:
+        # Fallback: very simple strip of tags
+        text = re.sub(r"<[^>]+>", "", html)
+        return text
+
+
 @router.post("/generate")
-async def generate_pdf(payload: dict = Body(...)):
+async def generate_pdf_from_html(payload: dict = Body(...)):
     """
-    payload: { "html": "<body>...</body>" }
-    returns: { "pdf_bytes_hex": "...", "filename": "accessible.pdf" }
+    Endpoint: POST /api/pdf/generate
+
+    payload JSON:
+      { "html": "<h1>Title</h1><p>Content...</p>" }
+
+    response JSON:
+      {
+        "pdf_bytes_hex": "<hex-encoded PDF bytes>",
+        "filename": "accessible.pdf"
+      }
     """
-    html = payload.get("html")
+    html = payload.get("html", "")
     if not html:
-        raise HTTPException(status_code=400, detail="No HTML provided")
+        raise HTTPException(status_code=400, detail="No html provided")
 
     try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir_path = Path(tmpdir)
-            html_file = tmpdir_path / "doc.html"
-            pdf_file = tmpdir_path / "doc.pdf"
+        # 1) Convert HTML -> plain-ish text
+        text = html_to_text(html)
 
-            # Wrap HTML in a basic document so browsers/Chromium render correctly
-            html_file.write_text(
-                f"""
-                <html>
-                  <head>
-                    <meta charset="utf-8">
-                    <style>
-                      body {{
-                        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                        line-height: 1.6;
-                        font-size: 12pt;
-                      }}
-                    </style>
-                  </head>
-                  <body>
-                    {html}
-                  </body>
-                </html>
-                """,
-                encoding="utf-8",
-            )
+        # 2) Create a simple PDF with PyMuPDF
+        doc = fitz.open()
+        page = doc.new_page()
 
-            # Uses Playwright's chromium print command
-            # Make sure `npm install playwright` and `npx playwright install chromium` have been run.
-            cmd = [
-                "npx",
-                "playwright",
-                "print",
-                str(html_file),
-                str(pdf_file),
-            ]
-            print("[pdf] Running:", " ".join(cmd))
-            proc = subprocess.run(
-                cmd,
-                cwd=str(tmpdir_path),
-                capture_output=True,
-                text=True,
-            )
-            if proc.returncode != 0:
-                detail = f"PDF generator failed (rc={proc.returncode}). stdout: {proc.stdout}\n\nstderr: {proc.stderr}"
-                print("[pdf] ERROR:", detail)
-                raise HTTPException(status_code=500, detail=detail)
+        # Basic text insertion. You could get fancier here and
+        # detect headings and change font sizes, etc.
+        # (50, 72) is roughly 50pt from left, 1-inch from top.
+        page.insert_text(
+            (50, 72),
+            text,
+            fontsize=11,
+            fontname="helv",
+        )
 
-            pdf_bytes = pdf_file.read_bytes()
+        pdf_bytes = doc.tobytes()
+        doc.close()
 
-            # 🔵 Standard name we're going to use from now on
-            pdf_bytes_hex = pdf_bytes.hex()
+        # 3) Encode bytes as hex for transport
+        pdf_hex = pdf_bytes.hex()
 
-            return {
-                "pdf_bytes_hex": pdf_bytes_hex,
-                "filename": "accessible.pdf",
-            }
+        return {
+            "pdf_bytes_hex": pdf_hex,
+            "filename": "accessible.pdf",
+        }
 
-    except HTTPException:
-        raise
     except Exception as e:
-        print("[pdf] Unexpected error:", e)
+        print("[pdf] PDF generation failed:", e)
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
