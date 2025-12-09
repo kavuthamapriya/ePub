@@ -1,44 +1,105 @@
 // src/modules/mapping/TagRow.jsx
-import React from "react";
+import React, { useState } from "react";
 import { useConversionStore } from "../../store/useConversionStore";
 
-const rowStyle = { display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid #f1f5f9" };
+const rowStyle = {
+  border: "1px solid #e5e7eb",
+  borderRadius: 6,
+  padding: "8px 10px",
+  marginBottom: 6,
+  backgroundColor: "#fff",
+};
 
-const ACCESSIBLE_OPTIONS = [
-  "", "P", "H1", "H2", "H3", "H4", "H5", "H6", "FIGURE", "FIGCAPTION", "UL", "OL", "LI", "BLOCKQUOTE", "IMG", "ASIDE", "NAV", "SECTION"
+const labelStyle = { fontSize: 13, color: "#4b5563" };
+
+const currentMappingStyle = { fontSize: 14, fontWeight: 600 };
+
+const buttonStyle = {
+  marginTop: 6,
+  padding: "4px 8px",
+  fontSize: 12,
+  borderRadius: 4,
+  border: "1px solid #2563eb",
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  cursor: "pointer",
+};
+
+// All accessible tag options you want to allow
+const ACCESSIBLE_TAG_OPTIONS = [
+  "P",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+  "UL",
+  "OL",
+  "LI",
+  "FIGURE",
+  "FIGCAPTION",
+  "BLOCKQUOTE",
+  "SPAN",
+  "STRONG",
+  "EM",
 ];
 
 export default function TagRow({ tag }) {
-  const tagMappings = useConversionStore((s) => s.tagMappings);
-  const setTagMapping = useConversionStore((s) => s.setTagMapping);
+  const { tagMappings, setTagMapping } = useConversionStore();
+  const [showPicker, setShowPicker] = useState(false);
 
-  const current = tagMappings ? tagMappings[tag] || "" : "";
+  const current = tagMappings?.[tag] || "";
 
-  function onChange(e) {
-    setTagMapping(tag, e.target.value);
+  function handleChange(e) {
+    const value = e.target.value;
+    setTagMapping(tag, value);
   }
 
   return (
     <div style={rowStyle}>
-      <div style={{ width: "36%", color: "#111827", fontWeight: 600 }}>{tag}</div>
-
-      <div style={{ flex: 1 }}>
-        <select value={current} onChange={onChange} style={{ width: "240px", padding: 8 }}>
-          {ACCESSIBLE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt || "(choose)"}</option>)}
-        </select>
+      <div style={labelStyle}>Original HTML tag</div>
+      <div style={{ fontFamily: "monospace", fontSize: 14 }}>
+        <code>&lt;{tag}&gt;</code>
       </div>
 
-      <div>
-        <button onClick={() => {
-          // simple suggestion heuristics:
-          // if tag contains 'h' or 'title' suggest H2; if contains 'cover' suggest IMG or P.
-          const t = (tag || "").toLowerCase();
-          let suggestion = "P";
-          if (t.includes("title") || t.includes("head") || t.includes("h1") || t.includes("h2")) suggestion = "H2";
-          if (t.includes("cover") || t.includes("img") || t.includes("figure")) suggestion = "IMG";
-          setTagMapping(tag, suggestion);
-        }} style={{ padding: "6px 10px" }}>AI Suggest</button>
+      <div style={{ marginTop: 6 }}>
+        <span style={labelStyle}>Accessible tag:&nbsp;</span>
+        <span style={currentMappingStyle}>
+          {current ? current : "Not mapped"}
+        </span>
       </div>
+
+      <button
+        type="button"
+        style={buttonStyle}
+        onClick={() => setShowPicker((prev) => !prev)}
+      >
+        {showPicker ? "Hide options" : "Choose accessible tag"}
+      </button>
+
+      {showPicker && (
+        <div style={{ marginTop: 6 }}>
+          <select
+            value={current}
+            onChange={handleChange}
+            style={{
+              width: "100%",
+              padding: "4px 6px",
+              borderRadius: 4,
+              border: "1px solid #d1d5db",
+              fontSize: 13,
+            }}
+          >
+            <option value="">(no mapping)</option>
+            {ACCESSIBLE_TAG_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 }

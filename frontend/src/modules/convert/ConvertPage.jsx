@@ -4,9 +4,6 @@ import EPUBViewer from "../epub/EPUBViewer";
 import PDFViewer from "../pdf/PDFViewer";
 import { useConversionStore } from "../../store/useConversionStore";
 
-// 👇 FastAPI base URL – note the `/api`
-const API_BASE = "http://localhost:8000/api";
-
 const headerHeight = 88;
 
 const containerStyle = {
@@ -51,16 +48,53 @@ const rightPanel = {
   gap: 8,
 };
 
+// ---- helper: extract unique semantic tags from HTML ----
+function extractSemanticTagsFromHtml(htmlString) {
+  if (!htmlString) return [];
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, "text/html");
+
+    const skipTags = new Set([
+      "html",
+      "head",
+      "body",
+      "meta",
+      "link",
+      "script",
+      "style",
+      "title",
+    ]);
+
+    const tagSet = new Set();
+
+    doc.querySelectorAll("*").forEach((el) => {
+      const name = el.tagName.toLowerCase();
+      if (!skipTags.has(name)) {
+        tagSet.add(name);
+      }
+    });
+
+    return Array.from(tagSet).sort();
+  } catch (err) {
+    console.error("extractSemanticTagsFromHtml failed:", err);
+    return [];
+  }
+}
+
 export default function ConvertPage() {
   const {
     epubFile,
     pdfFile,
     accessibleHtml,
+    publisher,
+    setPublisher,
     setEpubFile,
     setPdfFile,
     setAccessibleHtml,
-    setPublisher,
-    publisher,
+    setHtmlTags,
+    resetMappings,
   } = useConversionStore();
 
   const [localEpub, setLocalEpub] = useState(epubFile);
@@ -86,44 +120,34 @@ export default function ConvertPage() {
       form.append("epub_file", localEpub);
       if (localPdf) form.append("pdf_file", localPdf);
 
-      const url = `${API_BASE}/convert`;
-      console.log("ConvertPage: POST", url);
-
-      const res = await fetch(url, {
+      console.log("ConvertPage: POST http://localhost:8000/api/convert");
+      const res = await fetch("http://localhost:8000/api/convert", {
         method: "POST",
         body: form,
       });
 
       if (!res.ok) {
-        let errText = "";
-        try {
-          const j = await res.json();
-          errText = JSON.stringify(j, null, 2);
-        } catch {
-          errText = await res.text();
-        }
-        console.error("Convert failed. HTTP", res.status, errText);
+        const txt = await res.text();
+        console.error("Convert failed. HTTP", res.status, txt);
         alert(`Convert failed: HTTP ${res.status} — see console for details`);
         return;
       }
 
-      let data;
-      try {
-        data = await res.json();
-      } catch (e) {
-        console.error("Convert: failed to parse JSON:", e);
-        alert("Convert failed: could not parse JSON from backend");
-        return;
-      }
+      const data = await res.json();
+      console.log("ConvertPage: Convert success payload:", data);
 
-      console.log("Convert success payload:", data);
+      const rawHtml = data?.accessible?.accessible_html ?? "";
+      setAccessibleHtml(rawHtml);
 
-      const raw = data?.accessible?.accessible_html ?? "";
-      setAccessibleHtml(raw);
+      // reset old mappings & extract new tags
+      resetMappings();
+      const tags = extractSemanticTagsFromHtml(rawHtml);
+      console.log("ConvertPage: extracted semantic tags:", tags);
+      setHtmlTags(tags);
 
       alert("Convert succeeded");
-    } catch (e) {
-      console.error("Convert error (network or JS):", e);
+    } catch (err) {
+      console.error("ConvertPage: error (network or JS):", err);
       alert("Convert failed: unexpected error (see console)");
     } finally {
       setLoading(false);
@@ -132,6 +156,7 @@ export default function ConvertPage() {
 
   return (
     <div style={containerStyle}>
+      {/* LEFT: controls */}
       <aside style={leftPanel}>
         <h3>Controls</h3>
 
@@ -173,18 +198,21 @@ export default function ConvertPage() {
             color: "#fff",
             border: "none",
             borderRadius: 6,
+            cursor: "pointer",
+            width: "100%",
           }}
         >
           {loading ? "Converting..." : "Convert"}
         </button>
       </aside>
 
+      {/* MIDDLE: EPUB preview */}
       <main style={middlePanel}>
         <h3 style={{ margin: 0 }}>EPUB Preview</h3>
         <div
           style={{
             flex: 1,
-            minHeight: 400,
+            minHeight: 500,
             border: "1px solid #e6e8eb",
             borderRadius: 6,
             padding: 8,
@@ -199,10 +227,11 @@ export default function ConvertPage() {
         </div>
       </main>
 
+      {/* RIGHT: Accessible HTML source & PDF preview */}
       <aside style={rightPanel}>
-        <h3 style={{ margin: 0 }}>PDF / Accessible HTML (Source)</h3>
+        <h3 style={{ margin: 0 }}>Accessible HTML (Source)</h3>
 
-        {/* PDF preview */}
+        {/* PDF preview box */}
         <div
           style={{
             height: 220,
@@ -219,7 +248,7 @@ export default function ConvertPage() {
           )}
         </div>
 
-        {/* Accessible HTML source */}
+        {/* HTML source */}
         <div
           style={{
             flex: 1,

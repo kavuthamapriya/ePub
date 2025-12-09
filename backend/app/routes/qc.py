@@ -10,11 +10,6 @@ router = APIRouter()
 async def qc_epub(epub_file: UploadFile = File(...)):
     """
     Run DAISY Ace QC on an uploaded EPUB file.
-    Returns:
-      {
-        "summary": { "errors": int, "warnings": int, "passes": int },
-        "raw_report": { ...full Ace JSON... }
-      }
     """
     try:
         data = await epub_file.read()

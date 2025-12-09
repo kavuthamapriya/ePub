@@ -3,46 +3,135 @@ import React from "react";
 import { useConversionStore } from "../../store/useConversionStore";
 import TagRow from "./TagRow";
 
-const wrapper = { display: "flex", gap: 12, padding: 16 };
-const left = { width: "28%", background: "#fff", padding: 12, borderRadius: 8, boxSizing: "border-box", minHeight: 200 };
-const middle = { flex: 1, background: "#fff", padding: 12, borderRadius: 8, boxSizing: "border-box", minHeight: 200 };
-const right = { width: 260, background: "#fff", padding: 12, borderRadius: 8, boxSizing: "border-box", minHeight: 200 };
+const wrapperStyle = {
+  display: "flex",
+  gap: 20,
+  padding: 16,
+  backgroundColor: "#f3f4f6",
+};
+
+const leftStyle = {
+  width: "22%",
+  minWidth: 260,
+  backgroundColor: "#ffffff",
+  padding: "12px",
+  borderRadius: 8,
+  boxSizing: "border-box",
+  border: "1px solid #e5e7eb",
+};
+
+const middleStyle = {
+  flex: 1,
+  backgroundColor: "#ffffff",
+  padding: "12px",
+  borderRadius: 8,
+  boxSizing: "border-box",
+  border: "1px solid #e5e7eb",
+  maxHeight: "60vh",
+  overflowY: "auto",
+};
+
+const rightStyle = {
+  width: "26%",
+  minWidth: 260,
+  backgroundColor: "#ffffff",
+  padding: "12px",
+  borderRadius: 8,
+  boxSizing: "border-box",
+  border: "1px solid #e5e7eb",
+};
 
 export default function MappingPage() {
-  const { htmlTags, tagMappings } = useConversionStore();
+  const { htmlTags = [], tagMappings = {} } = useConversionStore();
 
-  const mappedCount = Object.keys(tagMappings || {}).length;
-  const total = (htmlTags && htmlTags.length) || 0;
+  const total = htmlTags.length || 0;
+  const mappedCount = htmlTags.filter((t) => !!tagMappings[t]).length;
   const completion = total === 0 ? 0 : Math.round((mappedCount / total) * 100);
 
   return (
-    <div style={wrapper}>
-      <section style={left}>
-        <h3>HTML Tags</h3>
-        {htmlTags.length === 0 ? (
-          <p style={{ color: "#6b7280" }}>Run Convert first to load tags.</p>
+    <div style={wrapperStyle}>
+      {/* LEFT: plain tag list */}
+      <section style={leftStyle}>
+        <h3 style={{ marginTop: 0 }}>HTML Tags</h3>
+        {total === 0 ? (
+          <p style={{ color: "#6b7280", fontSize: 14 }}>
+            Run <strong>Convert</strong> first to load tags from the EPUB
+            content.
+          </p>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0 }}>
-            {htmlTags.map((t) => <li key={t} style={{ padding: "6px 0", borderBottom: "1px solid #f1f5f9" }}>{t}</li>)}
+          <ul style={{ listStyle: "none", paddingLeft: 0, fontSize: 14 }}>
+            {htmlTags.map((tag) => (
+              <li key={tag} style={{ fontFamily: "monospace" }}>
+                &lt;{tag}&gt;
+              </li>
+            ))}
           </ul>
         )}
       </section>
 
-      <section style={middle}>
-        <h3>Accessible Tags / Mapping</h3>
-        {htmlTags.length === 0 ? (
-          <p style={{ color: "#6b7280" }}>No tags available yet.</p>
+      {/* MIDDLE: mapping controls */}
+      <section style={middleStyle}>
+        <h3 style={{ marginTop: 0 }}>Accessible Tags / Mapping</h3>
+        {total === 0 ? (
+          <p style={{ color: "#6b7280", fontSize: 14 }}>
+            No tags available yet.
+          </p>
         ) : (
-          htmlTags.map((t) => <TagRow key={t} tag={t} />)
+          htmlTags.map((tag) => <TagRow key={tag} tag={tag} />)
         )}
       </section>
 
-      <section style={right}>
-        <h3>Progress</h3>
-        <div style={{ height: 12, background: "#eef2f7", borderRadius: 6, overflow: "hidden", marginTop: 6 }}>
-          <div style={{ height: "100%", width: `${completion}%`, background: "#10b981" }} />
+      {/* RIGHT: progress */}
+      <section style={rightStyle}>
+        <h3 style={{ marginTop: 0 }}>Progress</h3>
+
+        <p style={{ marginBottom: 8, fontSize: 14 }}>
+          <strong>{mappedCount}</strong> of <strong>{total}</strong> tags
+          mapped.
+        </p>
+
+        <div
+          style={{
+            height: 14,
+            backgroundColor: "#e5e7eb",
+            borderRadius: 999,
+            overflow: "hidden",
+            marginBottom: 6,
+          }}
+        >
+          <div
+            style={{
+              width: `${completion}%`,
+              height: "100%",
+              backgroundColor: "#10b981",
+            }}
+          />
         </div>
-        <p style={{ marginTop: 8 }}>{completion}% Complete</p>
+        <div style={{ fontSize: 13, color: "#374151" }}>
+          {completion}% complete
+        </div>
+
+        <button
+          type="button"
+          style={{
+            marginTop: 16,
+            padding: "8px 14px",
+            width: "100%",
+            borderRadius: 6,
+            border: "none",
+            backgroundColor: "#1d4ed8",
+            color: "#fff",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+          onClick={() => {
+            alert(
+              "In the next step you can use these mappings to drive auto-fixes / accessible HTML generation."
+            );
+          }}
+        >
+          COMPLETE
+        </button>
       </section>
     </div>
   );
