@@ -1,7 +1,7 @@
 // src/modules/convert/ConvertPage.jsx
 import React, { useState, useEffect } from "react";
 import EPUBViewer from "../epub/EPUBViewer";
-import PDFViewer from "../pdf/PDFViewer";
+// PDFViewer removed – no longer used
 import { useConversionStore } from "../../store/useConversionStore";
 
 const headerHeight = 88;
@@ -86,7 +86,7 @@ function extractSemanticTagsFromHtml(htmlString) {
 export default function ConvertPage() {
   const {
     epubFile,
-    pdfFile,
+    pdfFile, // still kept in store, but not previewed here
     accessibleHtml,
     publisher,
     setPublisher,
@@ -209,46 +209,39 @@ export default function ConvertPage() {
       {/* MIDDLE: EPUB preview */}
       <main style={middlePanel}>
         <h3 style={{ margin: 0 }}>EPUB Preview</h3>
+
+        {/* Single-scroll EPUB container */}
         <div
           style={{
             flex: 1,
             minHeight: 500,
             border: "1px solid #e6e8eb",
             borderRadius: 6,
-            padding: 8,
-            overflow: "auto",
+            overflow: "hidden", // hide extra nested scrollbars
           }}
         >
           {localEpub ? (
-            <EPUBViewer file={localEpub} mode="scrolled" />
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                overflow: "auto", // one visible scrollbar only
+              }}
+            >
+              <EPUBViewer file={localEpub} mode="scrolled" />
+            </div>
           ) : (
-            <div style={{ color: "#777" }}>Upload EPUB to preview</div>
+            <div style={{ padding: 16, color: "#777" }}>
+              Upload EPUB to preview
+            </div>
           )}
         </div>
       </main>
 
-      {/* RIGHT: Accessible HTML source & PDF preview */}
+      {/* RIGHT: Accessible HTML source ONLY (PDF preview removed) */}
       <aside style={rightPanel}>
         <h3 style={{ margin: 0 }}>Accessible HTML (Source)</h3>
 
-        {/* PDF preview box */}
-        <div
-          style={{
-            height: 220,
-            border: "1px solid #e6e8eb",
-            borderRadius: 6,
-            overflow: "hidden",
-            padding: 6,
-          }}
-        >
-          {localPdf ? (
-            <PDFViewer file={localPdf} />
-          ) : (
-            <div style={{ color: "#777" }}>Upload a PDF to preview</div>
-          )}
-        </div>
-
-        {/* HTML source */}
         <div
           style={{
             flex: 1,

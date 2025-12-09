@@ -1,3 +1,4 @@
+// src/modules/epub/EPUBViewer.jsx
 import React, { useEffect, useRef } from "react";
 
 function EPUBViewer({ file }) {
@@ -59,10 +60,29 @@ function EPUBViewer({ file }) {
         const rendition = book.renderTo(container, {
           width,
           height,
-          flow: "scrolled-doc",
+          flow: "scrolled-doc",   // ✅ vertical flow
           spread: "none",
           manager: "continuous",
           allowScriptedContent: true,
+        });
+
+        // ✅ Hide scrollbars INSIDE the EPUB iframe
+        rendition.on("rendered", (_section, view) => {
+          try {
+            const iframe = view?.iframe;
+            if (!iframe) return;
+            const doc =
+              iframe.contentDocument || iframe.contentWindow?.document;
+
+            if (doc?.documentElement) {
+              doc.documentElement.style.overflow = "hidden";
+            }
+            if (doc?.body) {
+              doc.body.style.overflow = "hidden";
+            }
+          } catch (e) {
+            console.warn("EPUBViewer: could not hide iframe scrollbars", e);
+          }
         });
 
         rendition
@@ -101,10 +121,10 @@ function EPUBViewer({ file }) {
       style={{
         width: "100%",
         height: "100%",
-        minHeight: "600px",
+        minHeight: 600,
         border: "1px solid #d1d5db",
-        borderRadius: "4px",
-        overflow: "auto",
+        borderRadius: 4,
+        overflow: "hidden",      // ✅ NO scroll here; parent handles scroll
         backgroundColor: "#ffffff",
       }}
     >
@@ -113,10 +133,9 @@ function EPUBViewer({ file }) {
         id="epub-viewer"
         style={{
           width: "100%",
-          height: "100%",
-          minHeight: "600px",
+          minHeight: "100%",
         }}
-      ></div>
+      />
     </div>
   );
 }
