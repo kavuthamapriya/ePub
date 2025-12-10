@@ -3,12 +3,15 @@ import React, { useState } from "react";
 import { useConversionStore } from "../../store/useConversionStore";
 import QCReport from "./QCReport";
 
+const API_BASE = "http://localhost:8000/api";
+
 const pageWrapper = {
   display: "flex",
   gap: 16,
   padding: 16,
   backgroundColor: "#f3f4f6",
   boxSizing: "border-box",
+  minHeight: "calc(100vh - 88px)",
 };
 
 const leftPanel = {
@@ -28,23 +31,12 @@ const middlePanel = {
   padding: 16,
   boxSizing: "border-box",
   boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-};
-
-const rightPanel = {
-  width: "38%",          // ⬅ increased
-  minWidth: 420,         // ⬅ wider minimum
-  background: "#fff",
-  borderRadius: 8,
-  padding: 16,
-  boxSizing: "border-box",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
   display: "flex",
   flexDirection: "column",
 };
 
-
 export default function QCPage() {
-  const { epubFile, accessibleHtml } = useConversionStore();
+  const { epubFile } = useConversionStore();
 
   const [loading, setLoading] = useState(false);
   const [qcSummary, setQcSummary] = useState(null);
@@ -52,13 +44,11 @@ export default function QCPage() {
 
   const [reportZipB64, setReportZipB64] = useState(null);
   const [reportFilename, setReportFilename] = useState(null);
-
-  const [pdfPreviewSrc, setPdfPreviewSrc] = useState(null);
-  const [aceHtmlReport, setAceHtmlReport] = useState(""); // NEW
+  const [reportHtml, setReportHtml] = useState("");
 
   async function runQc() {
     if (!epubFile) {
-      alert("Please upload an EPUB in the Convert section before running QC.");
+      alert("Please upload an EPUB (in Convert tab) before running QC.");
       return;
     }
 
@@ -68,8 +58,8 @@ export default function QCPage() {
       const form = new FormData();
       form.append("epub_file", epubFile);
 
-      console.log("QCPage: POST http://localhost:8000/api/qc/epub");
-      const res = await fetch("http://localhost:8000/api/qc/epub", {
+      console.log("QCPage: POST", `${API_BASE}/qc/epub`);
+      const res = await fetch(`${API_BASE}/qc/epub`, {
         method: "POST",
         body: form,
       });
@@ -88,7 +78,11 @@ export default function QCPage() {
       setQcRaw(data.raw_report || null);
       setReportZipB64(data.report_zip_b64 || null);
       setReportFilename(data.report_filename || "ace-report.zip");
-      setAceHtmlReport(data.html_report || ""); // NEW
+
+      // 🔴 IMPORTANT: backend returns "html_report", not "report_html"
+      setReportHtml(
+        data.html_report || data.report_html || "" // support either name
+      );
     } catch (err) {
       console.error("QC error:", err);
       alert("QC failed (network or JS error). See console for details.");
@@ -125,64 +119,6 @@ export default function QCPage() {
     }
   }
 
-  async function generateAccessiblePdf() {
-    if (!accessibleHtml) {
-      alert("No accessible HTML available. Run Convert first.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      console.log("QCPage: POST http://localhost:8000/api/pdf/generate");
-      const res = await fetch("http://localhost:8000/api/pdf/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ html: accessibleHtml }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        console.error("Generate PDF failed. HTTP", res.status, text);
-        alert(`Generate PDF failed. HTTP ${res.status} – see console.`);
-        return;
-      }
-
-      const data = await res.json();
-      console.log("QCPage: PDF success payload:", data);
-
-      const hex = data.pdf_bytes_hex;
-      const filename = data.filename || "accessible.pdf";
-
-      if (!hex) {
-        console.error("No pdf_bytes_hex found in response:", data);
-        alert("PDF generation response was missing pdf_bytes_hex.");
-        return;
-      }
-
-      const bytes = new Uint8Array(hex.length / 2);
-      for (let i = 0; i < hex.length; i += 2) {
-        bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
-      }
-
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-
-      setPdfPreviewSrc(url);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (err) {
-      console.error("Generate PDF error:", err);
-      alert("Generate PDF failed (network or JS error). See console.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <div style={pageWrapper}>
       {/* LEFT: controls */}
@@ -190,7 +126,7 @@ export default function QCPage() {
         <h3>QC Controls</h3>
         <p style={{ fontSize: 13, color: "#4b5563" }}>
           Runs the DAISY Ace EPUB accessibility checker (WCAG / EPUB
-          Accessibility).
+          Accessibility) on the uploaded EPUB.
         </p>
 
         <button
@@ -232,108 +168,16 @@ export default function QCPage() {
 
         <hr style={{ margin: "16px 0" }} />
 
-        <button
-          onClick={generateAccessiblePdf}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 6,
-            border: "none",
-            backgroundColor: "#111827",
-            color: "#fff",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Generate Accessible PDF
-        </button>
+        <p style={{ fontSize: 12, color: "#6b7280" }}>
+          To actually fix issues you will edit the XHTML in your EPUB and rerun
+          QC. The Issue Inspector on the right only shows the HTML in your
+          browser.
+        </p>
       </section>
 
-      {/* MIDDLE: QC summary + issues */}
+      {/* MIDDLE: summary + issues + HTML report + inspector */}
       <section style={middlePanel}>
-        <QCReport summary={qcSummary} rawReport={qcRaw} />
-      </section>
-
-      {/* RIGHT: DAISY HTML report + PDF preview */}
-      <section style={rightPanel}>
-        <h3>DAISY Ace HTML Report</h3>
-        <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>
-          This is the full DAISY Ace HTML report for the current EPUB.
-        </p>
-
-        <div
-          style={{
-            marginTop: 8,
-            border: "1px solid #e5e7eb",
-            borderRadius: 6,
-            height: 320,
-            overflow: "hidden",
-            background: "#f9fafb",
-          }}
-        >
-          {aceHtmlReport ? (
-            <iframe
-              title="DAISY Ace HTML report"
-              srcDoc={aceHtmlReport}
-              sandbox="allow-same-origin allow-forms allow-scripts"
-              style={{
-                width: "100%",
-                height: "100%",
-                border: "none",
-                background: "#ffffff",
-
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                padding: 16,
-                color: "#6b7280",
-                fontSize: 13,
-              }}
-            >
-              Run QC to view the full DAISY Ace HTML report here.
-            </div>
-          )}
-        </div>
-
-        <h4 style={{ marginTop: 16, marginBottom: 4 }}>Accessible PDF Preview</h4>
-        <p style={{ fontSize: 13, color: "#4b5563" }}>
-          Generate the accessible PDF after QC to preview it here.
-        </p>
-
-        <div
-          style={{
-            marginTop: 4,
-            border: "1px solid #e5e7eb",
-            borderRadius: 6,
-            height: 220,
-            overflow: "hidden",
-            background: "#f9fafb",
-          }}
-        >
-          {pdfPreviewSrc ? (
-            <iframe
-              title="Accessible PDF"
-              src={pdfPreviewSrc}
-              style={{
-                width: "100%",
-                height: "100%",
-                border: "none",
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                padding: 16,
-                color: "#6b7280",
-                fontSize: 13,
-              }}
-            >
-              No PDF generated yet.
-            </div>
-          )}
-        </div>
+        <QCReport summary={qcSummary} rawReport={qcRaw} reportHtml={reportHtml} />
       </section>
     </div>
   );

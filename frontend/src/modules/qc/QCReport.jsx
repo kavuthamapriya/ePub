@@ -1,308 +1,547 @@
-import React, { useMemo, useState } from "react";
+// src/modules/qc/QCReport.jsx
+import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * Extract human-friendly issue objects from a DAISY Ace JSON report.
- * Ace structure (simplified):
- *   report.assertions[]                         -> document-level assertions
- *   docAssertion.assertions[]                   -> test-level assertions (only failures)
- *   each test assertion:
- *     - earl:test: { "earl:impact", "dct:title", "dct:description", help: {...} }
- *     - earl:result: { "earl:outcome", "dct:description", "earl:pointer": {...} }
+ * Strip script tags from the DAISY Ace HTML report that try to load
+ * local JS files (jquery / bootstrap / datatables). They don't exist
+ * in your React app, they just spam 404 + "$ is not defined".
  */
-function extractIssuesFromAceReport(rawReport) {
-  if (!rawReport || typeof rawReport !== "object") return [];
+function sanitizeAceHtml(html) {
+  if (!html) return "";
 
-  const docAssertions = Array.isArray(rawReport.assertions)
-    ? rawReport.assertions
-    : [];
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
 
-  const issues = [];
+    // ✅ Remove ALL <script> tags (inline + external)
+    doc.querySelectorAll("script").forEach((s) => s.remove());
 
-  docAssertions.forEach((docAssertion) => {
-    const subject = docAssertion["earl:testSubject"] || {};
-    const docTitle =
-      subject["dct:title"] ||
-      subject.title ||
-      subject.url ||
-      "EPUB Document";
-    const docUrl = subject.url || "";
-
-    const testAssertions = Array.isArray(docAssertion.assertions)
-      ? docAssertion.assertions
-      : [];
-
-    testAssertions.forEach((a) => {
-      const result = a["earl:result"] || {};
-      const outcome = result["earl:outcome"];
-
-      // Ace only outputs failing tests, but keep the guard.
-      if (outcome && outcome !== "fail") return;
-
-      const test = a["earl:test"] || {};
-      const impact = test["earl:impact"] || test.impact || "unknown";
-
-      const title =
-        test["dct:title"] ||
-        test.title ||
-        "Unnamed accessibility rule";
-
-      const description =
-        result["dct:description"] ||
-        test["dct:description"] ||
-        test.description ||
-        "No description provided.";
-
-      const help = test.help || {};
-      const helpTitle = help["dct:title"] || help.title || "";
-      const wcagLabel = helpTitle || "WCAG / Rule";
-
-      const helpUrl = help.url || "";
-
-      const pointer = result["earl:pointer"] || {};
-      const pointers = [];
-
-      if (Array.isArray(pointer.cfi)) {
-        pointer.cfi.forEach((cfi) =>
-          pointers.push({ type: "EPUB CFI", value: cfi })
-        );
-      }
-      if (Array.isArray(pointer.css)) {
-        pointer.css.forEach((css) =>
-          pointers.push({ type: "CSS", value: css })
-        );
-      }
-
-      issues.push({
-        id: issues.length + 1,
-        outcome,
-        impact,
-        title,
-        description,
-        wcagLabel,
-        helpUrl,
-        docTitle,
-        docUrl,
-        pointers,
+    // ✅ Remove inline JS handlers (onclick, onload, etc.)
+    doc.querySelectorAll("*").forEach((el) => {
+      [...el.attributes].forEach((attr) => {
+        if (attr.name.startsWith("on")) {
+          el.removeAttribute(attr.name);
+        }
       });
     });
-  });
 
-  return issues;
+    return "<!doctype html>\n" + doc.documentElement.outerHTML;
+  } catch (e) {
+    console.error("sanitizeAceHtml failed:", e);
+    return html;
+  }
 }
+
+
+/**
+ * Extract a friendlier list of issues from the Ace JSON report.
+ * We try multiple fields so names like "epub-pagelist-broken" appear,
+ * not just "Issue #1".
+ */
+function extractIssues(rawReport) {
+  if (!rawReport) return [];
+
+  const assertions =
+    rawReport["earl:assertions"] ||
+    rawReport.assertions ||
+    [];
+
+  return assertions.map((a, index) => {
+    const test = a["earl:test"] || a.test || {};
+    const result = a["earl:result"] || a.result || {};
+    const subject = a["earl:subject"] || a.subject || {};
+
+    // Title / rule id
+    const title =
+      test["dct:title"] ||
+      test["title"] ||
+      test["earl:title"] ||
+      a["dct:title"] ||
+      a["title"] ||
+      `Issue #${index + 1}`;
+
+    // WCAG string, if present
+    const wcag =
+      a["wcag"] ||
+      test["wcag"] ||
+      result["wcag"] ||
+      "";
+
+    // Impact / severity: Ace usually encodes it in the outcome + description.
+    let impact =
+      result["impact"] ||
+      result["dct:impact"] ||
+      "unknown";
+
+    const outcomeRaw =
+      result["earl:outcome"] ||
+      result["outcome"] ||
+      "";
+
+    const outcome = String(outcomeRaw).toLowerCase();
+    if (!impact || impact === "unknown") {
+      if (outcome.includes("fail")) impact = "serious";
+      else if (outcome.includes("warn")) impact = "moderate";
+    }
+
+    const documentPath =
+      subject["dct:source"] ||
+      subject["source"] ||
+      subject["title"] ||
+      "unknown";
+
+    const description =
+      result["dct:description"] ||
+      result["description"] ||
+      "";
+
+    // Some Ace rules may include inline HTML snippets; many don't.
+    const htmlSnippet =
+      result["html"] ||
+      result["snippet"] ||
+      "";
+
+    return {
+      id: index,
+      title: String(title),
+      wcag: String(wcag || "—"),
+      impact: String(impact || "unknown"),
+      document: String(documentPath || "unknown"),
+      description: String(description || ""),
+      htmlSnippet,
+    };
+  });
+}
+
+const cardsRow = {
+  display: "flex",
+  gap: 16,
+  marginBottom: 16,
+};
 
 const cardBase = {
   flex: 1,
-  padding: "14px 18px",
   borderRadius: 8,
-  background: "#fff",
+  padding: 12,
+  background: "#f9fafb",
   border: "1px solid #e5e7eb",
 };
 
-const badgeBase = {
-  display: "inline-block",
-  fontSize: 12,
-  padding: "3px 8px",
-  borderRadius: 999,
-  background: "#f3f4f6",
-  marginRight: 8,
+const issuesLayout = {
+  display: "flex",
+  gap: 16,
+  flex: 1,
+  minHeight: 0, // so children flex correctly inside parent
 };
 
-export default function QCReport({ summary, rawReport }) {
-  const [openIssueId, setOpenIssueId] = useState(null);
+const issuesListStyle = {
+  flex: 1,
+  overflowY: "auto",
+  paddingRight: 4,
+};
 
-  const errors = summary?.errors ?? 0;
-  const warnings = summary?.warnings ?? 0;
-  const passes = summary?.passes ?? 0;
+const rightColumnStyle = {
+  width: "40%",
+  minWidth: 360,
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+};
 
-  // Parse the Ace JSON only once per change
-  const issues = useMemo(
-    () => extractIssuesFromAceReport(rawReport),
-    [rawReport]
-  );
+const panelStyle = {
+  borderRadius: 8,
+  border: "1px solid #e5e7eb",
+  background: "#fff",
+  padding: 12,
+  boxSizing: "border-box",
+};
 
-  const hasAnyIssues = issues.length > 0;
-  const hasProblems = errors + warnings > 0;
+export default function QCReport({ summary, rawReport, reportHtml }) {
+  const issues = useMemo(() => extractIssues(rawReport), [rawReport]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [sanitizedHtml, setSanitizedHtml] = useState("");
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [issues.length]);
+
+  useEffect(() => {
+    setSanitizedHtml(sanitizeAceHtml(reportHtml || ""));
+  }, [reportHtml]);
+
+  const selectedIssue = issues[selectedIndex] || null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Summary cards */}
-      <div style={{ display: "flex", gap: 16 }}>
-        <div style={{ ...cardBase, borderTop: "4px solid #ef4444" }}>
-          <div style={{ fontSize: 13, color: "#6b7280" }}>Errors</div>
+      <div style={cardsRow}>
+        <div
+          style={{
+            ...cardBase,
+            borderTop: "4px solid #ef4444",
+          }}
+        >
+          <div style={{ fontSize: 14, color: "#6b7280" }}>Errors</div>
           <div style={{ fontSize: 28, fontWeight: 700, color: "#b91c1c" }}>
-            {errors}
+            {summary?.errors ?? 0}
           </div>
         </div>
-        <div style={{ ...cardBase, borderTop: "4px solid #f59e0b" }}>
-          <div style={{ fontSize: 13, color: "#6b7280" }}>Warnings</div>
+
+        <div
+          style={{
+            ...cardBase,
+            borderTop: "4px solid #f59e0b",
+          }}
+        >
+          <div style={{ fontSize: 14, color: "#6b7280" }}>Warnings</div>
           <div style={{ fontSize: 28, fontWeight: 700, color: "#b45309" }}>
-            {warnings}
+            {summary?.warnings ?? 0}
           </div>
         </div>
-        <div style={{ ...cardBase, borderTop: "4px solid #22c55e" }}>
-          <div style={{ fontSize: 13, color: "#6b7280" }}>Passes</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#15803d" }}>
-            {passes}
+
+        <div
+          style={{
+            ...cardBase,
+            borderTop: "4px solid #10b981",
+          }}
+        >
+          <div style={{ fontSize: 14, color: "#6b7280" }}>Passes</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "#047857" }}>
+            {summary?.passes ?? 0}
           </div>
         </div>
       </div>
 
-      {/* Issues header */}
-      <div style={{ marginTop: 8, marginBottom: 4, fontWeight: 600 }}>
-        Accessibility Issues
-      </div>
+      {/* Issues + Right column */}
+      <div style={issuesLayout}>
+        {/* LEFT: issues list */}
+        <div style={issuesListStyle}>
+          <h3 style={{ marginTop: 0, marginBottom: 8 }}>Accessibility Issues</h3>
 
-      {/* If parse produced issues, render them */}
-      {hasAnyIssues && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {issues.map((issue) => {
-            const isOpen = openIssueId === issue.id;
+          {issues.length === 0 ? (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 6,
+                background: "#ecfdf5",
+                color: "#166534",
+                fontSize: 14,
+              }}
+            >
+              No accessibility issues reported by DAISY Ace.
+            </div>
+          ) : (
+            issues.map((issue, idx) => {
+              const isSelected = idx === selectedIndex;
 
-            return (
-              <div
-                key={issue.id}
-                style={{
-                  borderRadius: 8,
-                  border: "1px solid #fecaca",
-                  background: "#fee2e2",
-                  overflow: "hidden",
-                }}
-              >
-                {/* Header row */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenIssueId(isOpen ? null : issue.id)
-                  }
+              return (
+                <div
+                  key={issue.id}
+                  onClick={() => setSelectedIndex(idx)}
                   style={{
-                    all: "unset",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    width: "100%",
-                    padding: "10px 14px",
+                    marginBottom: 10,
+                    padding: 12,
+                    borderRadius: 8,
+                    border: isSelected
+                      ? "2px solid #2563eb"
+                      : "1px solid #fecaca",
+                    background: isSelected ? "#eff6ff" : "#fee2e2",
                     cursor: "pointer",
                   }}
                 >
-                  <div>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
-                      Issue #{issue.id}
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      marginBottom: 4,
+                      fontSize: 14,
+                    }}
+                  >
+                    {`Issue #${idx + 1}: ${issue.title}`}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        padding: "2px 6px",
+                        borderRadius: 999,
+                        background: "#f3f4f6",
+                      }}
+                    >
+                      WCAG: {issue.wcag || "—"}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        padding: "2px 6px",
+                        borderRadius: 999,
+                        background: "#fee2e2",
+                        color: "#b91c1c",
+                      }}
+                    >
+                      Impact: {issue.impact}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        padding: "2px 6px",
+                        borderRadius: 999,
+                        background: "#e5e7eb",
+                      }}
+                    >
+                      Document: {issue.document}
+                    </span>
+                  </div>
+
+                  {issue.description && (
+                    <p
+                      style={{
+                        marginTop: 8,
+                        marginBottom: 0,
+                        fontSize: 13,
+                        color: "#4b5563",
+                      }}
+                    >
+                      {issue.description}
+                    </p>
+                  )}
+
+                  <p
+                    style={{
+                      marginTop: 6,
+                      marginBottom: 0,
+                      fontSize: 12,
+                      color: "#6b7280",
+                    }}
+                  >
+                    Click to inspect this issue’s HTML (if available) in the
+                    Issue Inspector.
+                  </p>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* RIGHT: Ace HTML report + Issue inspector */}
+        <div style={rightColumnStyle}>
+          {/* Ace HTML report */}
+          <div style={panelStyle}>
+            <h3
+              style={{
+                marginTop: 0,
+                marginBottom: 4,
+                fontSize: 15,
+              }}
+            >
+              DAISY Ace HTML Report
+            </h3>
+            <p
+              style={{
+                fontSize: 12,
+                color: "#6b7280",
+                marginTop: 0,
+                marginBottom: 8,
+              }}
+            >
+              This is the full DAISY Ace HTML report for the current EPUB.
+            </p>
+            <div
+              style={{
+                border: "1px solid #e5e7eb",
+                borderRadius: 6,
+                height: 260,
+                overflow: "hidden",
+                background: "#f9fafb",
+              }}
+            >
+              {sanitizedHtml ? (
+                <iframe
+                  title="DAISY Ace HTML report"
+                  srcDoc={sanitizedHtml}
+                  style={{ width: "100%", height: "100%", border: "none" }}
+                  sandbox="allow-same-origin allow-forms allow-pointer-lock allow-scripts allow-popups allow-modals"
+                />
+              ) : (
+                <div
+                  style={{
+                    padding: 12,
+                    fontSize: 13,
+                    color: "#6b7280",
+                  }}
+                >
+                  Run QC to view the full DAISY Ace HTML report here.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Issue HTML inspector */}
+          <div style={panelStyle}>
+            <h3
+              style={{
+                marginTop: 0,
+                marginBottom: 4,
+                fontSize: 15,
+              }}
+            >
+              Issue HTML Inspector
+            </h3>
+            <p
+              style={{
+                fontSize: 12,
+                color: "#6b7280",
+                marginTop: 0,
+                marginBottom: 8,
+              }}
+            >
+              Click an issue in the list to inspect its HTML snippet (if
+              available). You can edit the snippet locally here.
+            </p>
+            <p
+              style={{
+                fontSize: 11,
+                color: "#6b7280",
+                marginTop: 0,
+                marginBottom: 8,
+              }}
+            >
+              <strong>Note:</strong> edits here are only in the browser. To
+              actually fix the EPUB, you’ll need a backend endpoint that writes
+              the edited HTML back into the EPUB and re-runs QC.
+            </p>
+
+            {selectedIssue ? (
+              <>
+                <div
+                  style={{
+                    fontSize: 13,
+                    marginBottom: 4,
+                  }}
+                >
+                  <strong>{`Issue #${selectedIndex + 1}: ${selectedIssue.title}`}</strong>
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "#4b5563",
+                    marginBottom: 8,
+                  }}
+                >
+                  <div>Document: {selectedIssue.document}</div>
+                  <div>Impact: {selectedIssue.impact}</div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "stretch",
+                    minHeight: 140,
+                  }}
+                >
+                  {/* HTML source (editable locally) */}
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        marginBottom: 4,
+                        color: "#374151",
+                      }}
+                    >
+                      HTML source (local edits)
                     </div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>
-                      {issue.title}
-                    </div>
-                    <div style={{ marginTop: 4 }}>
-                      <span style={badgeBase}>
-                        WCAG: {issue.wcagLabel}
-                      </span>
-                      <span style={badgeBase}>
-                        Impact: {issue.impact}
-                      </span>
-                      {issue.docTitle && (
-                        <span style={badgeBase}>
-                          Document: {issue.docTitle}
-                        </span>
+                    <div
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 4,
+                        background: "#f9fafb",
+                        height: 140,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {selectedIssue.htmlSnippet ? (
+                        <textarea
+                          defaultValue={selectedIssue.htmlSnippet}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            border: "none",
+                            resize: "none",
+                            fontFamily: "monospace",
+                            fontSize: 12,
+                            padding: 6,
+                            boxSizing: "border-box",
+                            background: "transparent",
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#6b7280",
+                            padding: 8,
+                          }}
+                        >
+                          <strong>No HTML snippet available.</strong>{" "}
+                          The selected issue does not include an inline HTML
+                          snippet in the DAISY Ace JSON report. You may need to
+                          open the referenced XHTML file directly in an editor
+                          to fix it.
+                        </div>
                       )}
                     </div>
                   </div>
-                  <span
-                    aria-hidden="true"
-                    style={{ fontSize: 16, paddingLeft: 8 }}
-                  >
-                    {isOpen ? "▲" : "▼"}
-                  </span>
-                </button>
 
-                {/* Body */}
-                {isOpen && (
-                  <div
-                    style={{
-                      borderTop: "1px solid #fecaca",
-                      padding: "10px 14px 12px",
-                      background: "#fff",
-                    }}
-                  >
-                    <div style={{ marginBottom: 8 }}>
-                      <strong>Description:</strong>
-                      <div style={{ marginTop: 4, fontSize: 14 }}>
-                        {issue.description}
-                      </div>
+                  {/* Preview – just echo the snippet */}
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        marginBottom: 4,
+                        color: "#374151",
+                      }}
+                    >
+                      Preview
                     </div>
-
-                    {issue.pointers?.length > 0 && (
-                      <div style={{ marginBottom: 8 }}>
-                        <strong>Occurrences:</strong>
-                        <ul
-                          style={{
-                            margin: "4px 0 0 18px",
-                            padding: 0,
-                            fontSize: 13,
-                          }}
-                        >
-                          {issue.pointers.map((p, idx) => (
-                            <li key={idx}>
-                              <code>{p.type}</code>: {p.value}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {issue.helpUrl && (
-                      <div style={{ fontSize: 13 }}>
-                        <a
-                          href={issue.helpUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Open DAISY KB / WCAG guidance
-                        </a>
-                      </div>
-                    )}
+                    <div
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 4,
+                        background: "#f9fafb",
+                        height: 140,
+                        overflow: "auto",
+                        padding: 6,
+                        fontFamily: "monospace",
+                        fontSize: 12,
+                      }}
+                    >
+                      {selectedIssue.htmlSnippet ? (
+                        <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
+                          {selectedIssue.htmlSnippet}
+                        </pre>
+                      ) : (
+                        <div style={{ fontSize: 12, color: "#6b7280" }}>
+                          No HTML snippet available for this issue.
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
+                </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "#6b7280",
+                  marginTop: 8,
+                }}
+              >
+                Select an issue in the list to inspect its details here.
               </div>
-            );
-          })}
+            )}
+          </div>
         </div>
-      )}
-
-      {/* If no issues and also no errors/warnings -> clean EPUB */}
-      {!hasAnyIssues && !hasProblems && (
-        <div
-          style={{
-            padding: "10px 12px",
-            borderRadius: 6,
-            background: "#ecfdf3",
-            border: "1px solid #bbf7d0",
-            color: "#166534",
-            fontSize: 14,
-          }}
-        >
-          No accessibility issues reported by DAISY Ace.
-        </div>
-      )}
-
-      {/* If no issues, but summary shows errors/warnings -> parsing fallback */}
-      {!hasAnyIssues && hasProblems && (
-        <div
-          style={{
-            padding: "10px 12px",
-            borderRadius: 6,
-            background: "#fef3c7",
-            border: "1px solid #facc15",
-            color: "#92400e",
-            fontSize: 14,
-          }}
-        >
-          DAISY Ace reported <strong>{errors}</strong> errors and{" "}
-          <strong>{warnings}</strong> warnings, but the detailed issue list
-          couldn’t be parsed from the JSON report.
-          <br />
-          Please open the full DAISY Ace HTML/JSON report for exact locations
-          and descriptions.
-        </div>
-      )}
+      </div>
     </div>
   );
 }
