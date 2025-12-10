@@ -31,14 +31,17 @@ const middlePanel = {
 };
 
 const rightPanel = {
-  width: "32%",
-  minWidth: 320,
+  width: "38%",          // ⬅ increased
+  minWidth: 420,         // ⬅ wider minimum
   background: "#fff",
   borderRadius: 8,
   padding: 16,
   boxSizing: "border-box",
   boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+  display: "flex",
+  flexDirection: "column",
 };
+
 
 export default function QCPage() {
   const { epubFile, accessibleHtml } = useConversionStore();
@@ -51,6 +54,7 @@ export default function QCPage() {
   const [reportFilename, setReportFilename] = useState(null);
 
   const [pdfPreviewSrc, setPdfPreviewSrc] = useState(null);
+  const [aceHtmlReport, setAceHtmlReport] = useState(""); // NEW
 
   async function runQc() {
     if (!epubFile) {
@@ -84,6 +88,7 @@ export default function QCPage() {
       setQcRaw(data.raw_report || null);
       setReportZipB64(data.report_zip_b64 || null);
       setReportFilename(data.report_filename || "ace-report.zip");
+      setAceHtmlReport(data.html_report || ""); // NEW
     } catch (err) {
       console.error("QC error:", err);
       alert("QC failed (network or JS error). See console for details.");
@@ -145,7 +150,6 @@ export default function QCPage() {
       const data = await res.json();
       console.log("QCPage: PDF success payload:", data);
 
-      // 🔴 FIX HERE – use pdf_bytes_hex (not pdf_bytes_b64)
       const hex = data.pdf_bytes_hex;
       const filename = data.filename || "accessible.pdf";
 
@@ -171,7 +175,6 @@ export default function QCPage() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      // don’t revoke yet so iframe can still load it
     } catch (err) {
       console.error("Generate PDF error:", err);
       alert("Generate PDF failed (network or JS error). See console.");
@@ -251,18 +254,60 @@ export default function QCPage() {
         <QCReport summary={qcSummary} rawReport={qcRaw} />
       </section>
 
-      {/* RIGHT: PDF preview */}
+      {/* RIGHT: DAISY HTML report + PDF preview */}
       <section style={rightPanel}>
-        <h3>Accessible PDF Preview</h3>
-        <p style={{ fontSize: 13, color: "#4b5563" }}>
-          Generate the accessible PDF after QC to preview it here.
+        <h3>DAISY Ace HTML Report</h3>
+        <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>
+          This is the full DAISY Ace HTML report for the current EPUB.
         </p>
+
         <div
           style={{
             marginTop: 8,
             border: "1px solid #e5e7eb",
             borderRadius: 6,
-            height: 480,
+            height: 320,
+            overflow: "hidden",
+            background: "#f9fafb",
+          }}
+        >
+          {aceHtmlReport ? (
+            <iframe
+              title="DAISY Ace HTML report"
+              srcDoc={aceHtmlReport}
+              sandbox="allow-same-origin allow-forms allow-scripts"
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "none",
+                background: "#ffffff",
+
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                padding: 16,
+                color: "#6b7280",
+                fontSize: 13,
+              }}
+            >
+              Run QC to view the full DAISY Ace HTML report here.
+            </div>
+          )}
+        </div>
+
+        <h4 style={{ marginTop: 16, marginBottom: 4 }}>Accessible PDF Preview</h4>
+        <p style={{ fontSize: 13, color: "#4b5563" }}>
+          Generate the accessible PDF after QC to preview it here.
+        </p>
+
+        <div
+          style={{
+            marginTop: 4,
+            border: "1px solid #e5e7eb",
+            borderRadius: 6,
+            height: 220,
             overflow: "hidden",
             background: "#f9fafb",
           }}

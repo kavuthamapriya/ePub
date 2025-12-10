@@ -47,7 +47,6 @@ def _summarize_ace_report(report: dict) -> dict:
     passes = 0
 
     try:
-        # Ace uses "assertions" or "earl:assertions" depending on version
         assertions = (
             report.get("assertions")
             or report.get("earl:assertions")
@@ -84,6 +83,7 @@ def run_daisy_ace(epub_bytes: bytes, filename: str) -> dict:
       {
         "summary": { "errors": int, "warnings": int, "passes": int },
         "raw_report": { ...full Ace JSON... },
+        "html_report": "<!doctype html>....",          # NEW
         "report_zip_b64": "<base64 of zip>",
         "report_filename": "book-ace-report.zip"
       }
@@ -98,7 +98,6 @@ def run_daisy_ace(epub_bytes: bytes, filename: str) -> dict:
         outdir = job_dir / "ace-report"
         outdir.mkdir(parents=True, exist_ok=True)
 
-        # Correct Ace invocation – no "check" subcommand.
         cmd = [
             str(ace_exe),
             str(epub_path),
@@ -115,49 +114,53 @@ def run_daisy_ace(epub_bytes: bytes, filename: str) -> dict:
             text=True,
         )
 
-        stdout = proc.stdout or ""
-        stderr = proc.stderr or ""
-        print("[qc_service] Ace stdout:\n", stdout)
-        print("[qc_service] Ace stderr:\n", stderr)
+        # Ace sometimes exits rc=1 with a winston.logAndWaitFinish error
+        # *after* writing the reports. Treat that as a warning; only fail if
+        # no JSON report exists.
+        if proc.returncode != 0:
+            print(
+                "[qc_service] WARNING: Ace CLI returned non-zero exit code:",
+                proc.returncode,
+            )
+            print("[qc_service] stdout:\n", proc.stdout)
+            print("[qc_service] stderr:\n", proc.stderr)
 
-        # ---- 1) Try to find JSON report regardless of return code ----
+        # --- JSON report ---
         json_path = None
         for cand in outdir.glob("*.json"):
             json_path = cand
-            # Prefer files starting with "report"
             if cand.name.startswith("report"):
                 break
 
-        # If NO report was generated and rc != 0 -> real failure
         if json_path is None:
             detail = (
-                f"Ace QC failed: Ace CLI failed (rc={proc.returncode}). "
-                f"stdout: {stdout}\n\nstderr: {stderr}"
+                "Ace QC failed: JSON report not found. "
+                f"Exit code={proc.returncode}. "
+                f"stdout: {proc.stdout}\n\nstderr: {proc.stderr}"
             )
-            print("[qc_service] No JSON report found. ERROR:", detail)
+            print("[qc_service] ERROR:", detail)
             raise HTTPException(status_code=500, detail=detail)
 
-        # If report exists but rc != 0, log a warning and continue
-        if proc.returncode != 0:
-            print(
-                "[qc_service] WARNING: Ace exited with non-zero rc, "
-                "but JSON report exists. Treating as success.\n"
-                f"rc={proc.returncode}"
-            )
-
         print("[qc_service] Using report JSON:", json_path)
-        try:
-            report = json.loads(json_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            print("[qc_service] Failed to load JSON report:", e)
-            raise HTTPException(
-                status_code=500,
-                detail=f"[QC] Failed to parse Ace JSON report: {e}",
-            )
-
+        report = json.loads(json_path.read_text(encoding="utf-8"))
         summary = _summarize_ace_report(report)
 
-        # ---- 2) Zip the entire Ace report directory for user download ----
+        # --- HTML report (for inline view in UI) ---
+        html_path = None
+        for cand in outdir.glob("*.html"):
+            html_path = cand
+            if cand.name.startswith("report"):
+                break
+
+        html_report = ""
+        if html_path is not None:
+            try:
+                html_report = html_path.read_text(encoding="utf-8")
+                print("[qc_service] Using HTML report:", html_path)
+            except Exception as e:
+                print("[qc_service] Failed to read HTML report:", e)
+
+        # --- Zip the entire Ace report directory for download ---
         zip_base = job_dir / "ace-report"
         shutil.make_archive(str(zip_base), "zip", root_dir=outdir)
         zip_path = zip_base.with_suffix(".zip")
@@ -167,6 +170,7 @@ def run_daisy_ace(epub_bytes: bytes, filename: str) -> dict:
         return {
             "summary": summary,
             "raw_report": report,
+            "html_report": html_report,  # NEW
             "report_zip_b64": zip_b64,
             "report_filename": f"{epub_path.stem}-ace-report.zip",
         }
