@@ -71,6 +71,130 @@ export default function QCPage() {
   }
 
   /**
+   * Best-effort: try to extract a useful snippet (element) from the full doc HTML,
+   * using the assertion information. If a specific element can be found, return a
+   * small HTML snippet (outerHTML). If not, return the full document as fallback.
+   *
+   * We also wrap the highlighted element with comment markers so it's easy to see.
+   */
+  function extractSnippetFromHtml(fullHtml, assertion) {
+    if (!fullHtml) return null;
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(fullHtml, "application/xhtml+xml");
+
+      // helper to return outerHTML with markers
+      const wrap = (el) => {
+        if (!el) return null;
+        const outer = el.outerHTML || new XMLSerializer().serializeToString(el);
+        return `<!-- HIGHLIGHT START -->\n${outer}\n<!-- HIGHLIGHT END -->`;
+      };
+
+      // 1) look for pointer with fragment id (e.g. 'xhtml/chapter1.xhtml#para2' or '#para2')
+      const subj = assertion?.subject || assertion?.["earl:subject"] || {};
+      const res = assertion?.result || assertion?.["earl:result"] || {};
+      const candidates = [];
+
+      // collect potential pointer strings
+      if (typeof subj === "string") candidates.push(subj);
+      if (subj && subj.source) candidates.push(subj.source);
+      if (subj && subj["@id"]) candidates.push(subj["@id"]);
+      if (res && res.pointer) candidates.push(res.pointer);
+      if (res && res.selector) {
+        if (typeof res.selector === "string") candidates.push(res.selector);
+        else candidates.push(JSON.stringify(res.selector));
+      }
+      if (assertion?.location) candidates.push(assertion.location);
+      if (assertion?.path) candidates.push(assertion.path);
+      if (assertion?.document) candidates.push(assertion.document);
+
+      // try to extract fragment id
+      for (const c of candidates) {
+        if (!c || typeof c !== "string") continue;
+        // if contains a '#id' fragment
+        const fragIndex = c.indexOf("#");
+        if (fragIndex >= 0) {
+          const frag = c.slice(fragIndex + 1).trim();
+          if (frag) {
+            // look up element by id
+            const elById = doc.getElementById(frag);
+            if (elById) return wrap(elById);
+            // sometimes fragment is like 'epub:type="pagebreak"!?' etc. ignore non-id
+          }
+        }
+      }
+
+      // 2) if selector-like string exists, try to use it as CSS selector
+      // pick result.selector if string
+      if (typeof res.selector === "string") {
+        try {
+          // sanitize a bit: remove 'css:' or 'xpath:' prefixes if present
+          const sel = res.selector.replace(/^\s*(css:|xpath:)\s*/i, "").trim();
+          // try querySelector
+          const el = doc.querySelector ? doc.querySelector(sel) : null;
+          if (el) return wrap(el);
+        } catch (e) {
+          // invalid selector — ignore
+        }
+      }
+
+      // 3) try XPath if selector or pointer looks like an XPath (starts with / or //)
+      const maybeXPath = (s) => typeof s === "string" && /^\s*(\/|\/\/)/.test(s);
+      const xpathCandidate = (typeof res.selector === "string" && maybeXPath(res.selector)) ? res.selector : null;
+      if (xpathCandidate) {
+        try {
+          const xpath = xpathCandidate;
+          const nsResolver = doc.createNSResolver(doc);
+          const result = doc.evaluate(xpath, doc, nsResolver, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+          if (result && result.singleNodeValue) return wrap(result.singleNodeValue);
+        } catch (e) {
+          // ignore xpath failures
+        }
+      }
+
+      // 4) text search fallback: look for short text from assertion description / test / name
+      const texts = [];
+      if (assertion?.test) texts.push(assertion.test);
+      if (assertion?.title) texts.push(assertion.title);
+      if (assertion?.name) texts.push(assertion.name);
+      if (res?.description) texts.push(res.description);
+
+      const findTextInNode = (text) => {
+        if (!text || typeof text !== "string") return null;
+        const trimmed = text.trim().slice(0, 200); // limit length for search
+        // search for nodes containing that text
+        const treeWalker = doc.createTreeWalker(doc.body || doc, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        while ((node = treeWalker.nextNode())) {
+          if (node.nodeValue && node.nodeValue.includes(trimmed)) {
+            // return parent element
+            return node.parentElement;
+          }
+        }
+        return null;
+      };
+
+      for (const t of texts) {
+        const el = findTextInNode(t);
+        if (el) return wrap(el);
+      }
+
+      // 5) last resort: try to find first <body> or first meaningful section to return small part
+      const body = doc.querySelector && (doc.querySelector("body") || doc.documentElement);
+      if (body && body.firstElementChild) {
+        // return outerHTML of first child
+        return `<!-- HIGHLIGHT START -->\n${body.firstElementChild.outerHTML}\n<!-- HIGHLIGHT END -->`;
+      }
+
+      // fallback: no snippet found — return full doc but still indicate no specific highlight
+      return null;
+    } catch (e) {
+      console.warn("extractSnippetFromHtml failed:", e);
+      return null;
+    }
+  }
+
+  /**
    * Robust attempt to infer a document path from an assertion.
    * Tries common fields, then falls back to regex scanning of the assertion content.
    */
@@ -183,9 +307,19 @@ export default function QCPage() {
         setIssueHtml(null);
         setIssueEditValue("");
       } else {
-        setIssueHtml(html);
-        setIssueEditValue(html);
-        setIssueMessage("");
+        // attempt to extract small snippet that corresponds to the assertion
+        const snippet = extractSnippetFromHtml(html, assertion);
+        if (snippet) {
+          // if a snippet found, put that into the editor (with highlight markers)
+          setIssueHtml(html);
+          setIssueEditValue(snippet);
+          setIssueMessage("");
+        } else {
+          // no snippet: show full document but inform user that the specific element couldn't be located
+          setIssueHtml(html);
+          setIssueEditValue(html);
+          setIssueMessage("No specific snippet could be located for this issue — the full document is loaded. Edit the highlighted part manually if you can identify it. (If you want only a precise fragment, implement server-side extraction or adjust the assertion selector.)");
+        }
       }
     } catch (err) {
       console.error("handleSelectIssue error:", err);
@@ -267,7 +401,7 @@ export default function QCPage() {
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, marginBottom: 6, fontWeight: 600 }}>HTML Source</div>
-              <textarea value={issueEditValue} onChange={(e) => setIssueEditValue(e.target.value)} placeholder={issueLoading ? "Loading..." : "Select an issue to load its HTML here."} style={{ width: "100%", height: 300, boxSizing: "border-box", border: "1px solid #e5e7eb", borderRadius: 6, padding: 8, fontFamily: "monospace", fontSize: 12, resize: "vertical" }} />
+              <textarea value={issueEditValue} onChange={(e) => setIssueEditValue(e.target.value)} placeholder={issueLoading ? "Loading..." : "Select an issue to load its HTML here."} style={{ width: "100%", height: 380, boxSizing: "border-box", border: "1px solid #e5e7eb", borderRadius: 6, padding: 8, fontFamily: "monospace", fontSize: 12, resize: "vertical" }} />
             </div>
 
             <div style={{ width: 220, display: "flex", flexDirection: "column", gap: 10 }}>

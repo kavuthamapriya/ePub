@@ -29,6 +29,9 @@ function humanTitleFromAssertion(a, idx) {
   const r = a.result || a["earl:result"] || {};
   if (r.description) return r.description;
 
+  // sometimes test/report contains a label in a "rule" object
+  if (a.rule && (a.rule.name || a.rule.title)) return a.rule.name || a.rule.title;
+
   // fallback to a short label if available
   if (a["@id"]) return String(a["@id"]).split("/").pop();
 
@@ -50,12 +53,13 @@ function inferDocumentFromAssertion(a) {
 
   if (a.location) tryVals.push(a.location);
   if (a.path) tryVals.push(a.path);
+  if (a.document) tryVals.push(a.document);
 
   for (const v of tryVals) {
     if (!v || typeof v !== "string") continue;
     const cleaned = v.split("#")[0];
     // common epub internal file markers
-    if (cleaned.endsWith(".xhtml") || cleaned.endsWith(".html") || cleaned.includes("OEBPS") || cleaned.includes("oebps")) return cleaned;
+    if (cleaned.endsWith(".xhtml") || cleaned.endsWith(".html") || cleaned.includes("OEBPS") || cleaned.includes("oebps") || cleaned.includes("xhtml/")) return cleaned;
   }
   return "unknown";
 }
@@ -125,7 +129,7 @@ export default function QCReport({ summary, rawReport, onSelectIssue, selectedIs
 
               <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <div style={{ background: "#f3f4f6", padding: "4px 8px", borderRadius: 12, fontSize: 12 }}>
-                  WCAG: —
+                  WCAG: —{/* the report doesn't always include WCAG mapping; keep placeholder */}
                 </div>
 
                 <div style={{ background: "#fff1f2", padding: "4px 8px", borderRadius: 12, fontSize: 12 }}>
