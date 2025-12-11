@@ -1,308 +1,155 @@
 // src/modules/qc/QCReport.jsx
-import React, { useMemo, useState } from "react";
+import React from "react";
 
 /**
- * Extract human-friendly issue objects from a DAISY Ace JSON report.
+ * QCReport
+ * Props:
+ *  - summary: { errors, warnings, passes }
+ *  - rawReport: full Ace JSON (object)
+ *  - onSelectIssue(assertion): callback invoked when user clicks an issue
+ *  - selectedIssue: the currently selected assertion (object identity used)
+ *
+ * This component does not fetch files — it only lists issues and calls
+ * onSelectIssue when an issue is clicked.
  */
-function extractIssuesFromAceReport(rawReport) {
-  if (!rawReport || typeof rawReport !== "object") return [];
 
-  const docAssertions = Array.isArray(rawReport.assertions)
-    ? rawReport.assertions
-    : [];
-
-  const issues = [];
-
-  docAssertions.forEach((docAssertion) => {
-    const subject = docAssertion["earl:testSubject"] || {};
-    const docTitle =
-      subject["dct:title"] ||
-      subject.title ||
-      subject.url ||
-      "EPUB Document";
-    const docUrl = subject.url || "";
-
-    const testAssertions = Array.isArray(docAssertion.assertions)
-      ? docAssertion.assertions
-      : [];
-
-    testAssertions.forEach((a) => {
-      const result = a["earl:result"] || {};
-      const outcome = result["earl:outcome"];
-
-      // Ace only outputs failing tests, but keep the guard.
-      if (outcome && outcome !== "fail") return;
-
-      const test = a["earl:test"] || {};
-      const impact = test["earl:impact"] || test.impact || "unknown";
-
-      const title =
-        test["dct:title"] ||
-        test.title ||
-        "Unnamed accessibility rule";
-
-      const description =
-        result["dct:description"] ||
-        test["dct:description"] ||
-        test.description ||
-        "No description provided.";
-
-      const help = test.help || {};
-      const helpTitle = help["dct:title"] || help.title || "";
-      const wcagLabel = helpTitle || "WCAG / Rule";
-
-      const helpUrl = help.url || "";
-
-      const pointer = result["earl:pointer"] || {};
-      const pointers = [];
-
-      if (Array.isArray(pointer.cfi)) {
-        pointer.cfi.forEach((cfi) =>
-          pointers.push({ type: "EPUB CFI", value: cfi })
-        );
-      }
-      if (Array.isArray(pointer.css)) {
-        pointer.css.forEach((css) =>
-          pointers.push({ type: "CSS", value: css })
-        );
-      }
-
-      issues.push({
-        id: issues.length + 1,
-        outcome,
-        impact,
-        title,
-        description,
-        wcagLabel,
-        helpUrl,
-        docTitle,
-        docUrl,
-        pointers,
-      });
-    });
-  });
-
-  return issues;
+function safeGetAssertions(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  return raw.assertions || raw["earl:assertions"] || raw["assertions"] || [];
 }
 
-const cardBase = {
-  flex: 1,
-  padding: "14px 18px",
-  borderRadius: 8,
-  background: "#fff",
-  border: "1px solid #e5e7eb",
-};
+function humanTitleFromAssertion(a, idx) {
+  if (!a) return `Issue #${idx + 1}`;
+  // try common fields in ace results
+  if (a.test) return a.test;
+  if (a.title) return a.title;
+  if (a.name) return a.name;
 
-const badgeBase = {
-  display: "inline-block",
-  fontSize: 12,
-  padding: "3px 8px",
-  borderRadius: 999,
-  background: "#f3f4f6",
-  marginRight: 8,
-};
+  const r = a.result || a["earl:result"] || {};
+  if (r.description) return r.description;
 
-export default function QCReport({ summary, rawReport, onIssueSelect }) {
-  const [openIssueId, setOpenIssueId] = useState(null);
+  // fallback to a short label if available
+  if (a["@id"]) return String(a["@id"]).split("/").pop();
 
-  const errors = summary?.errors ?? 0;
-  const warnings = summary?.warnings ?? 0;
-  const passes = summary?.passes ?? 0;
+  return `Issue #${idx + 1}`;
+}
 
-  const issues = useMemo(
-    () => extractIssuesFromAceReport(rawReport),
-    [rawReport]
-  );
+function inferDocumentFromAssertion(a) {
+  if (!a) return "unknown";
+  const tryVals = [];
 
-  const hasAnyIssues = issues.length > 0;
-  const hasProblems = errors + warnings > 0;
+  const subj = a.subject || a["earl:subject"] || {};
+  if (typeof subj === "string") tryVals.push(subj);
+  if (subj && subj.source) tryVals.push(subj.source);
+  if (subj && subj["@id"]) tryVals.push(subj["@id"]);
+
+  const res = a.result || a["earl:result"] || {};
+  if (res.pointer) tryVals.push(res.pointer);
+  if (res.selector) tryVals.push(res.selector);
+
+  if (a.location) tryVals.push(a.location);
+  if (a.path) tryVals.push(a.path);
+
+  for (const v of tryVals) {
+    if (!v || typeof v !== "string") continue;
+    const cleaned = v.split("#")[0];
+    // common epub internal file markers
+    if (cleaned.endsWith(".xhtml") || cleaned.endsWith(".html") || cleaned.includes("OEBPS") || cleaned.includes("oebps")) return cleaned;
+  }
+  return "unknown";
+}
+
+export default function QCReport({ summary, rawReport, onSelectIssue, selectedIssue }) {
+  const assertions = safeGetAssertions(rawReport);
+
+  const issues = assertions.map((a, i) => {
+    const title = humanTitleFromAssertion(a, i);
+    const document = inferDocumentFromAssertion(a);
+
+    let impact = "unknown";
+    const res = a.result || a["earl:result"] || {};
+    if (res.outcome) impact = res.outcome;
+
+    return {
+      index: i,
+      raw: a,
+      title,
+      document,
+      impact,
+    };
+  });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Summary cards */}
-      <div style={{ display: "flex", gap: 16 }}>
-        <div style={{ ...cardBase, borderTop: "4px solid #ef4444" }}>
-          <div style={{ fontSize: 13, color: "#6b7280" }}>Errors</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#b91c1c" }}>
-            {errors}
-          </div>
+    <div style={{ padding: 0 }}>
+      {/* Top summary cards */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+        <div style={{ flex: "0 0 120px", padding: 12, borderRadius: 8, background: "#fff5f5", border: "1px solid #fca5a5" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#ef4444" }}>{summary?.errors ?? 0}</div>
+          <div style={{ fontSize: 12 }}>Errors</div>
         </div>
-        <div style={{ ...cardBase, borderTop: "4px solid #f59e0b" }}>
-          <div style={{ fontSize: 13, color: "#6b7280" }}>Warnings</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#b45309" }}>
-            {warnings}
-          </div>
+
+        <div style={{ flex: "0 0 120px", padding: 12, borderRadius: 8, background: "#fff7ed", border: "1px solid #fcd34d" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#d97706" }}>{summary?.warnings ?? 0}</div>
+          <div style={{ fontSize: 12 }}>Warnings</div>
         </div>
-        <div style={{ ...cardBase, borderTop: "4px solid #22c55e" }}>
-          <div style={{ fontSize: 13, color: "#6b7280" }}>Passes</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#15803d" }}>
-            {passes}
-          </div>
+
+        <div style={{ flex: "0 0 120px", padding: 12, borderRadius: 8, background: "#ecfdf5", border: "1px solid #86efac" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#059669" }}>{summary?.passes ?? 0}</div>
+          <div style={{ fontSize: 12 }}>Passes</div>
         </div>
       </div>
 
-      {/* Issues header */}
-      <div style={{ marginTop: 8, marginBottom: 4, fontWeight: 600 }}>
-        Accessibility Issues
-      </div>
+      <h3 style={{ marginTop: 4 }}>Accessibility Issues</h3>
 
-      {/* Parsed issues list */}
-      {hasAnyIssues && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {issues.map((issue) => {
-            const isOpen = openIssueId === issue.id;
+      {/* Issue list */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: "62vh", overflowY: "auto", paddingRight: 6 }}>
+        {issues.map((it) => {
+          const isSelected = selectedIssue && selectedIssue === it.raw;
 
-            const handleHeaderClick = () => {
-              const nextOpen = isOpen ? null : issue.id;
-              setOpenIssueId(nextOpen);
-              if (!isOpen && typeof onIssueSelect === "function") {
-                onIssueSelect(issue);
-              }
-            };
-
-            return (
-              <div
-                key={issue.id}
-                style={{
-                  borderRadius: 8,
-                  border: "1px solid #fecaca",
-                  background: "#fee2e2",
-                  overflow: "hidden",
-                }}
-              >
-                {/* Header row */}
-                <button
-                  type="button"
-                  onClick={handleHeaderClick}
-                  style={{
-                    all: "unset",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    width: "100%",
-                    padding: "10px 14px",
-                    cursor: "pointer",
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
-                      Issue #{issue.id}
-                    </div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>
-                      {issue.title}
-                    </div>
-                    <div style={{ marginTop: 4 }}>
-                      <span style={badgeBase}>
-                        WCAG: {issue.wcagLabel}
-                      </span>
-                      <span style={badgeBase}>
-                        Impact: {issue.impact}
-                      </span>
-                      {issue.docTitle && (
-                        <span style={badgeBase}>
-                          Document: {issue.docTitle}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <span
-                    aria-hidden="true"
-                    style={{ fontSize: 16, paddingLeft: 8 }}
-                  >
-                    {isOpen ? "▲" : "▼"}
-                  </span>
-                </button>
-
-                {/* Body */}
-                {isOpen && (
-                  <div
-                    style={{
-                      borderTop: "1px solid #fecaca",
-                      padding: "10px 14px 12px",
-                      background: "#fff",
-                    }}
-                  >
-                    <div style={{ marginBottom: 8 }}>
-                      <strong>Description:</strong>
-                      <div style={{ marginTop: 4, fontSize: 14 }}>
-                        {issue.description}
-                      </div>
-                    </div>
-
-                    {issue.pointers?.length > 0 && (
-                      <div style={{ marginBottom: 8 }}>
-                        <strong>Occurrences:</strong>
-                        <ul
-                          style={{
-                            margin: "4px 0 0 18px",
-                            padding: 0,
-                            fontSize: 13,
-                          }}
-                        >
-                          {issue.pointers.map((p, idx) => (
-                            <li key={idx}>
-                              <code>{p.type}</code>: {p.value}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {issue.helpUrl && (
-                      <div style={{ fontSize: 13 }}>
-                        <a
-                          href={issue.helpUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Open DAISY KB / WCAG guidance
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                )}
+          return (
+            <div
+              key={it.index}
+              onClick={() => onSelectIssue && onSelectIssue(it.raw)}
+              style={{
+                cursor: onSelectIssue ? "pointer" : "default",
+                padding: 12,
+                borderRadius: 8,
+                border: isSelected ? "2px solid #2563eb" : "1px solid #f4a8a8",
+                background: isSelected ? "#eef2ff" : "#fff6f6",
+              }}
+            >
+              <div style={{ fontWeight: 700 }}>
+                Issue #{it.index + 1}: {it.title}
               </div>
-            );
-          })}
-        </div>
-      )}
 
-      {/* No issues + no problems */}
-      {!hasAnyIssues && !hasProblems && (
-        <div
-          style={{
-            padding: "10px 12px",
-            borderRadius: 6,
-            background: "#ecfdf3",
-            border: "1px solid #bbf7d0",
-            color: "#166534",
-            fontSize: 14,
-          }}
-        >
-          No accessibility issues reported by DAISY Ace.
-        </div>
-      )}
+              <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ background: "#f3f4f6", padding: "4px 8px", borderRadius: 12, fontSize: 12 }}>
+                  WCAG: —
+                </div>
 
-      {/* Parsing fallback */}
-      {!hasAnyIssues && hasProblems && (
-        <div
-          style={{
-            padding: "10px 12px",
-            borderRadius: 6,
-            background: "#fef3c7",
-            border: "1px solid #facc15",
-            color: "#92400e",
-            fontSize: 14,
-          }}
-        >
-          DAISY Ace reported <strong>{errors}</strong> errors and{" "}
-          <strong>{warnings}</strong> warnings, but the detailed issue list
-          couldn’t be parsed from the JSON report.
-          <br />
-          Please open the full DAISY Ace HTML/JSON report for exact locations
-          and descriptions.
-        </div>
-      )}
+                <div style={{ background: "#fff1f2", padding: "4px 8px", borderRadius: 12, fontSize: 12 }}>
+                  Impact: {it.impact}
+                </div>
+
+                <div style={{ background: "#f3f4f6", padding: "4px 8px", borderRadius: 12, fontSize: 12 }}>
+                  Document: {it.document}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 8, fontSize: 13, color: "#6b7280" }}>
+                Click to view this issue's HTML in the editor.
+              </div>
+            </div>
+          );
+        })}
+
+        {issues.length === 0 && (
+          <div style={{ padding: 12, background: "#fafafa", borderRadius: 8, border: "1px dashed #e5e7eb" }}>
+            No issues found in the current Ace report.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
