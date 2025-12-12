@@ -6,10 +6,211 @@ import shutil
 import tempfile
 import subprocess
 from pathlib import Path
-from zipfile import ZipFile, BadZipFile
+from zipfile import ZipFile, BadZipFile, ZIP_DEFLATED
 
 from fastapi import HTTPException
+import io
+import zipfile
+from pathlib import PurePosixPath
 
+# -------------------------
+# Existing helper: normalise candidates
+# -------------------------
+def _normalize_candidates_from_path(requested: str):
+    """
+    Given a requested path (possibly a URL, a fragment, or a bare filename),
+    return an ordered list of candidate names to try inside an EPUB ZIP.
+    """
+    if not requested:
+        return []
+
+    s = requested.strip()
+    # remove scheme+host
+    if s.startswith("http://") or s.startswith("https://"):
+        try:
+            s = s.split("://", 1)[1]
+            s = s.split("/", 1)[1] if "/" in s else s
+        except Exception:
+            pass
+    # strip query/fragment
+    if "?" in s:
+        s = s.split("?", 1)[0]
+    if "#" in s:
+        s = s.split("#", 1)[0]
+    s = s.lstrip("./").lstrip("/")
+
+    candidates = []
+    if s:
+        candidates.append(s)
+
+    if not s.lower().startswith("oebps/"):
+        candidates.append("OEBPS/" + s)
+        candidates.append("oebps/" + s)
+
+    if not s.lower().startswith("xhtml/") and s:
+        candidates.append("xhtml/" + s)
+
+    try:
+        basename = PurePosixPath(s).name
+        if basename and basename not in candidates:
+            candidates.append(basename)
+    except Exception:
+        pass
+
+    lower = s.lower()
+    if lower != s and lower not in candidates:
+        candidates.append(lower)
+
+    if " " in s:
+        candidates.append(s.replace(" ", "_"))
+
+    seen = set()
+    filtered = []
+    for c in candidates:
+        if not c:
+            continue
+        if c in seen:
+            continue
+        seen.add(c)
+        filtered.append(c)
+    return filtered
+
+# -------------------------
+# Extract doc html (existing)
+# -------------------------
+def extract_doc_html(epub_bytes: bytes, doc_path: str) -> str | None:
+    """
+    Extract a single HTML/XHTML file from an EPUB archive (bytes).
+    Returns decoded text or None.
+    """
+    if epub_bytes is None or doc_path is None:
+        return None
+
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(epub_bytes))
+    except zipfile.BadZipFile:
+        return None
+
+    all_names = zf.namelist()
+    candidates = _normalize_candidates_from_path(doc_path)
+
+    for cand in candidates:
+        if cand in all_names:
+            try:
+                raw = zf.read(cand)
+            except Exception:
+                continue
+            for enc in ("utf-8", "utf-8-sig", "latin-1"):
+                try:
+                    return raw.decode(enc)
+                except Exception:
+                    continue
+            return raw.decode(errors="ignore")
+
+    for cand in candidates:
+        for name in all_names:
+            if name.endswith("/" + cand) or name.endswith(cand):
+                try:
+                    raw = zf.read(name)
+                except Exception:
+                    continue
+                for enc in ("utf-8", "utf-8-sig", "latin-1"):
+                    try:
+                        return raw.decode(enc)
+                    except Exception:
+                        continue
+                return raw.decode(errors="ignore")
+
+    return None
+
+# -------------------------
+# New: write_doc_into_epub()
+# -------------------------
+def write_doc_into_epub(epub_bytes: bytes, doc_path: str, new_html: str) -> bytes:
+    """
+    Return a new EPUB (bytes) where the entry corresponding to doc_path is replaced
+    with new_html. Tries a set of path candidates inside the EPUB. If an exact
+    match is not found, it will add the doc_path (normalized) as a new file.
+    """
+    if epub_bytes is None or doc_path is None or new_html is None:
+        raise HTTPException(status_code=400, detail="Missing parameters for write_doc_into_epub")
+
+    # Normalize doc path
+    normalized = doc_path.replace("\\", "/").lstrip("/")
+
+    try:
+        in_zf = zipfile.ZipFile(io.BytesIO(epub_bytes), "r")
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Provided EPUB is not a valid ZIP/EPUB file")
+
+    all_names = in_zf.namelist()
+    candidates = _normalize_candidates_from_path(normalized)
+
+    # Determine which name to replace (exact first, then endswith matches)
+    target_name = None
+    for cand in candidates:
+        if cand in all_names:
+            target_name = cand
+            break
+
+    if not target_name:
+        # Attempt endswith search
+        for cand in candidates:
+            for name in all_names:
+                if name.endswith("/" + cand) or name.endswith(cand):
+                    target_name = name
+                    break
+            if target_name:
+                break
+
+    # If still not found, we'll write a best-effort path (use 'normalized' or 'xhtml/normalized')
+    if not target_name:
+        if normalized in all_names:
+            target_name = normalized
+        else:
+            # try OEBPS/normalized or xhtml/normalized
+            trial = normalized
+            if not trial.lower().startswith("oebps/"):
+                trial = f"OEBPS/{normalized}"
+                if trial not in all_names:
+                    trial = f"xhtml/{normalized}"
+            target_name = trial
+
+    # Build a new zip in memory, copying everything except target entry
+    out_io = io.BytesIO()
+    with zipfile.ZipFile(out_io, "w", compression=ZIP_DEFLATED) as out_zf:
+        for name in all_names:
+            if name == target_name:
+                # skip original entry; we'll write replacement below
+                continue
+            # copy original file bytes preserving attributes minimally
+            try:
+                data = in_zf.read(name)
+                out_zf.writestr(name, data)
+            except Exception:
+                # best effort: skip unreadable file
+                continue
+
+        # write the replacement entry (create directories implicitly)
+        # ensure target_name does not start with './'
+        to_write_name = target_name.lstrip("./")
+        if to_write_name.endswith("/"):
+            # improbable but guard: append 'index.xhtml'
+            to_write_name = to_write_name + "index.xhtml"
+        # ensure bytes
+        write_bytes = new_html.encode("utf-8")
+        out_zf.writestr(to_write_name, write_bytes)
+
+    try:
+        in_zf.close()
+    except Exception:
+        pass
+
+    return out_io.getvalue()
+
+# -------------------------
+# Rest of previous code: ACE runner (unchanged)
+# -------------------------
 # Backend root (where node_modules lives)
 BACKEND_ROOT = Path(__file__).resolve().parents[2]  # .../backend
 NODE_BIN = BACKEND_ROOT / "node_modules" / ".bin"
@@ -50,7 +251,6 @@ def _summarize_ace_report(report: dict) -> dict:
             elif "pass" in outcome:
                 passes += 1
     except Exception:
-        # keep safe: return 0 counts on error
         pass
 
     return {"errors": errors, "warnings": warnings, "passes": passes}
@@ -122,78 +322,10 @@ def run_daisy_ace(epub_bytes: bytes, filename: str) -> dict:
             "report_filename": f"{Path(filename).stem}-ace-report.zip",
         }
 
-
-def extract_doc_html(epub_source, doc_path: str) -> str:
-    """
-    Return raw XHTML/HTML string for a document inside an EPUB.
-
-    - epub_source may be:
-      * bytes (full EPUB bytes)
-      * path-like string to an EPUB file on disk
-
-    - doc_path should be a relative path inside the EPUB ZIP, e.g. "OEBPS/nav.xhtml" or "xhtml/00_Halftitle_Page.xhtml".
-      Leading slashes or backslashes are tolerated and normalized.
-
-    Returns the file contents as text (utf-8). Raises HTTPException(400) on missing / invalid input.
-    """
-    if not doc_path:
-        raise HTTPException(status_code=400, detail="doc_path must be provided")
-
-    # normalize path separators and remove leading "/" or "\" if present
-    normalized = doc_path.replace("\\", "/").lstrip("/")
-
-    # get a ZipFile to read
-    zf = None
-    try:
-        if isinstance(epub_source, (bytes, bytearray)):
-            # treat as bytes
-            from io import BytesIO
-            zf = ZipFile(BytesIO(epub_source))
-        else:
-            # treat as path string / Path
-            epub_path = Path(epub_source)
-            if not epub_path.exists():
-                raise HTTPException(status_code=400, detail=f"EPUB file not found at {epub_path}")
-            zf = ZipFile(str(epub_path), "r")
-    except BadZipFile:
-        raise HTTPException(status_code=400, detail="Uploaded file is not a valid EPUB (bad ZIP)")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not open EPUB: {e}")
-
-    # try common possible internal names:
-    candidates = [normalized, normalized.lstrip("/"), f"OEBPS/{normalized}", f"./{normalized}"]
-    # also try doc path with and without a leading "OEBPS/" or "OPS/"
-    # (many EPUBs are packaged differently)
-    if not normalized.startswith("OEBPS/"):
-        candidates.extend([f"OEBPS/{normalized}", f"OPS/{normalized}"])
-    if not normalized.startswith("xhtml/") and "xhtml/" in normalized:
-        candidates.append(normalized.split("xhtml/", 1)[-1])
-
-    # remove duplicates while preserving order
-    seen = set()
-    try:
-        for cand in candidates:
-            cand = cand.replace("\\", "/").lstrip("./")
-            if cand in seen:
-                continue
-            seen.add(cand)
-            if cand in zf.namelist():
-                with zf.open(cand) as f:
-                    raw = f.read()
-                    try:
-                        text = raw.decode("utf-8")
-                    except UnicodeDecodeError:
-                        # fallback to latin-1
-                        text = raw.decode("latin-1")
-                    return text
-    finally:
-        try:
-            zf.close()
-        except Exception:
-            pass
-
-    # not found — helpful error
-    raise HTTPException(
-        status_code=400,
-        detail=f"Document '{doc_path}' not found inside EPUB. Tried candidates: {list(seen)[:8]}",
-    )
+# Exports (functions that routes import)
+# Note: Python modules export everything, but these are the main helpers used by routes.
+__all__ = [
+    "extract_doc_html",
+    "write_doc_into_epub",
+    "run_daisy_ace",
+]

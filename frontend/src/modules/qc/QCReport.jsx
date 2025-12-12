@@ -1,153 +1,110 @@
 // src/modules/qc/QCReport.jsx
 import React from "react";
 
-/* ---------------------------
-   Utility: Flatten nested assertions
-   (Ace reports can nest assertions; the real issues are leaf assertions)
----------------------------- */
+/**
+ * Helper: flatten nested Ace assertions so that each leaf assertion becomes one "issue".
+ */
 function flattenAssertions(list) {
   const result = [];
 
   function walk(a) {
     if (!a) return;
-
-    // If this assertion contains deeper assertions, walk them
+    // if this assertion contains deeper assertions, walk them
     if (Array.isArray(a.assertions) && a.assertions.length > 0) {
       a.assertions.forEach(child => walk(child));
+    } else if (Array.isArray(a["earl:assertions"]) && a["earl:assertions"].length > 0) {
+      a["earl:assertions"].forEach(child => walk(child));
     } else {
-      // leaf assertion -> real issue
+      // leaf assertion — push it
       result.push(a);
     }
   }
 
-  if (Array.isArray(list)) {
-    list.forEach(a => walk(a));
-  }
-
+  (list || []).forEach(a => walk(a));
   return result;
 }
 
+/**
+ * Extract the top-level leaf assertion list from raw Ace report object.
+ */
 function getAssertionsFromReport(rawReport) {
   if (!rawReport) return [];
-
-  const topLevel =
-    rawReport.assertions ||
-    rawReport["earl:assertions"] ||
-    [];
-
+  const topLevel = rawReport.assertions || rawReport["earl:assertions"] || [];
   return flattenAssertions(topLevel);
 }
 
-/* Helper to build a readable issue title from assertion fields */
-function getIssueTitle(assertion) {
-  if (!assertion) return "Unknown Issue";
-
-  // common fields used by Ace / EARL style reports
-  if (assertion.test && typeof assertion.test === "string") return assertion.test;
-  if (assertion.rule && typeof assertion.rule === "string") return assertion.rule;
-  if (assertion.title && typeof assertion.title === "string") return assertion.title;
-  if (assertion.name && typeof assertion.name === "string") return assertion.name;
-
-  // result.description sometimes exists
-  const result = assertion.result || assertion["earl:result"] || {};
-  if (result.description && typeof result.description === "string") return result.description;
-
-  // try assertions[0].test etc (defensive)
-  if (Array.isArray(assertion.assertions) && assertion.assertions.length > 0) {
-    const child = assertion.assertions[0];
-    if (child && (child.test || child.title || child.rule)) {
-      return child.test || child.title || child.rule || "Issue";
-    }
+/**
+ * Small helper to produce a short title for an assertion for display in the list.
+ * Uses dct:description or result.description or test/name fields if available.
+ */
+function shortTitleForAssertion(a) {
+  if (!a) return "Unnamed issue";
+  const desc = a["dct:description"] || (a.result && a.result.description) || a.description || a.test || a.name || null;
+  if (desc && typeof desc === "string") {
+    return desc.length > 80 ? desc.slice(0, 80) + "…" : desc;
   }
-
-  // fallback: small JSON snippet
+  // fallback: stringify small part
   try {
-    const str = JSON.stringify(assertion);
-    const truncated = str.length > 120 ? str.slice(0, 116) + "..." : str;
-    return truncated;
+    const s = JSON.stringify(a);
+    return s.length > 80 ? s.slice(0, 80) + "…" : s;
   } catch (e) {
-    return "Unknown Issue";
+    return "Unnamed issue";
   }
-}
-
-/* Small helper to read document path from assertion */
-function getDocPath(assertion) {
-  if (!assertion) return "unknown";
-  const subj = assertion.subject || assertion["earl:subject"] || {};
-  if (typeof subj === "string") {
-    return subj.split("#")[0] || "unknown";
-  }
-  if (subj && subj.source) return (subj.source + "").split("#")[0];
-  if (assertion.location) return assertion.location.split("#")[0];
-  if (assertion.path) return assertion.path.split("#")[0];
-  if (assertion.document) return assertion.document.split("#")[0];
-  return "unknown";
 }
 
 export default function QCReport({ summary, rawReport, onSelectIssue, selectedIssue }) {
-  const issues = getAssertionsFromReport(rawReport);
+  const assertions = getAssertionsFromReport(rawReport);
+
+  const errors = summary ? summary.errors || 0 : 0;
+  const warnings = summary ? summary.warnings || 0 : 0;
+  const passes = summary ? summary.passes || 0 : 0;
 
   return (
     <div>
-      <h2 style={{ marginTop: 0 }}>Accessibility Issues</h2>
-
-      {summary && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-          <div style={{ background: "#fee2e2", padding: 10, borderRadius: 8, minWidth: 80, textAlign: "center" }}>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{summary.errors}</div>
-            <div style={{ fontSize: 12 }}>Errors</div>
-          </div>
-          <div style={{ background: "#fef3c7", padding: 10, borderRadius: 8, minWidth: 80, textAlign: "center" }}>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{summary.warnings}</div>
-            <div style={{ fontSize: 12 }}>Warnings</div>
-          </div>
-          <div style={{ background: "#dcfce7", padding: 10, borderRadius: 8, minWidth: 80, textAlign: "center" }}>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{summary.passes}</div>
-            <div style={{ fontSize: 12 }}>Passes</div>
-          </div>
+      <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+        <div style={{ background: "#fee2e2", padding: 12, borderRadius: 8, width: 100 }}>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{errors}</div>
+          <div style={{ color: "#6b7280" }}>Errors</div>
         </div>
-      )}
+        <div style={{ background: "#ffedd5", padding: 12, borderRadius: 8, width: 100 }}>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{warnings}</div>
+          <div style={{ color: "#6b7280" }}>Warnings</div>
+        </div>
+        <div style={{ background: "#dcfce7", padding: 12, borderRadius: 8, width: 100 }}>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{passes}</div>
+          <div style={{ color: "#6b7280" }}>Passes</div>
+        </div>
+      </div>
 
-      {issues.length === 0 && (
-        <div style={{ color: "#6b7280" }}>No issues found (run QC to populate issues).</div>
-      )}
-
-      <div>
-        {issues.map((issue, idx) => {
-          const title = getIssueTitle(issue) || `Issue #${idx + 1}`;
-          const docPath = getDocPath(issue) || "unknown";
-          const isSelected = selectedIssue === issue;
-
+      <h3>Accessibility Issues</h3>
+      <div style={{ maxHeight: "60vh", overflow: "auto", paddingRight: 8 }}>
+        {assertions.length === 0 ? (
+          <div style={{ color: "#6b7280" }}>No issues found (run QC to populate list).</div>
+        ) : assertions.map((a, idx) => {
+          const isSelected = selectedIssue === a;
           return (
             <div
               key={idx}
-              onClick={() => onSelectIssue && onSelectIssue(issue)}
+              onClick={() => onSelectIssue && onSelectIssue(a)}
               style={{
-                border: isSelected ? "2px solid #2563eb" : "1px solid #e5e7eb",
-                padding: 12,
                 borderRadius: 8,
-                background: isSelected ? "#eff6ff" : "#fff5f5",
+                padding: 12,
                 marginBottom: 12,
-                cursor: "pointer",
+                background: isSelected ? "#eef2ff" : "#fff1f2",
+                border: isSelected ? "2px solid #2563eb" : "1px solid #fca5a5",
+                cursor: "pointer"
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: 16 }}>
-                Issue #{idx + 1}: {title}
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>{`Issue #${idx + 1}: ${shortTitleForAssertion(a)}`}</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                <div style={{ background: "#e6e6e6", padding: "4px 8px", borderRadius: 999, fontSize: 12 }}>
+                  Impact: { (a.result && (a.result.impact || a.result["earl:outcome"])) || "unknown" }
+                </div>
+                <div style={{ background: "#e6e6e6", padding: "4px 8px", borderRadius: 999, fontSize: 12 }}>
+                  Document: { (a.subject && (a.subject.source || a.subject["@id"])) || (a.document || a.path) || "unknown" }
+                </div>
               </div>
-
-              <div style={{ marginTop: 6, fontSize: 13, color: "#374151" }}>
-                <span style={{ marginRight: 12 }}>
-                  <strong>Impact:</strong>{" "}
-                  {(issue.impact || (issue.result && issue.result.impact) || "unknown")}
-                </span>
-                <span>
-                  <strong>Document:</strong> {docPath}
-                </span>
-              </div>
-
-              <div style={{ marginTop: 8, color: "#6b7280", fontSize: 13 }}>
-                Click to inspect this issue's HTML in the editor.
-              </div>
+              <div style={{ color: "#6b7280" }}>Click to inspect this issue's HTML in the editor.</div>
             </div>
           );
         })}
