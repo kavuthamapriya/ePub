@@ -3,6 +3,40 @@ import React, { useState } from "react";
 import QCReport from "./QCReport";
 import { useConversionStore } from "../../store/useConversionStore";
 
+/* ---------------------------
+   Utility: Flatten nested assertions
+---------------------------- */
+function flattenAssertions(list) {
+  const result = [];
+
+  function walk(a) {
+    if (!a) return;
+
+    if (Array.isArray(a.assertions) && a.assertions.length > 0) {
+      a.assertions.forEach(child => walk(child));
+    } else {
+      result.push(a);
+    }
+  }
+
+  if (Array.isArray(list)) {
+    list.forEach(a => walk(a));
+  }
+
+  return result;
+}
+
+function getAssertionsFromReport(rawReport) {
+  if (!rawReport) return [];
+
+  const topLevel =
+    rawReport.assertions ||
+    rawReport["earl:assertions"] ||
+    [];
+
+  return flattenAssertions(topLevel);
+}
+
 /* Styles and URLs (keep same backend URLs if required) */
 const pageWrapper = { display: "flex", gap: 16, padding: 16, backgroundColor: "#f3f4f6", boxSizing: "border-box" };
 const leftPanel = { width: "22%", minWidth: 260, background: "#fff", borderRadius: 8, padding: 16, boxSizing: "border-box", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" };
@@ -26,6 +60,7 @@ export default function QCPage() {
   const [issueLoading, setIssueLoading] = useState(false);
   const [issueEditValue, setIssueEditValue] = useState("");
   const [issueMessage, setIssueMessage] = useState(""); // show helpful messages instead of blocking alerts
+  const [issueType, setIssueType] = useState("unknown");
 
   async function runQc() {
     if (!epubFile) {
@@ -43,6 +78,7 @@ export default function QCPage() {
       setIssueHtml(null);
       setIssueEditValue("");
       setIssueMessage("");
+      setIssueType("unknown");
 
       const form = new FormData();
       form.append("epub_file", epubFile);
@@ -58,7 +94,6 @@ export default function QCPage() {
       const data = await res.json();
       console.log("QC success payload:", data);
       setQcSummary(data.summary || null);
-      // Some servers return raw_report, some return raw_report as string; store as object when possible
       setQcRaw(data.raw_report || (data.rawReport ? data.rawReport : { html_report: data.html_report || null }));
       setReportZipB64(data.report_zip_b64 || null);
       setReportFilename(data.report_filename || "ace-report.zip");
@@ -73,7 +108,7 @@ export default function QCPage() {
   /**
    * Best-effort: try to extract a useful snippet (element) from the full doc HTML,
    * using the assertion information. If a specific element can be found, return a
-   * small HTML snippet (outerHTML). If not, return the full document as fallback.
+   * small HTML snippet (outerHTML). If not, return null (so the caller can show full doc).
    *
    * We also wrap the highlighted element with comment markers so it's easy to see.
    */
@@ -111,45 +146,36 @@ export default function QCPage() {
       // try to extract fragment id
       for (const c of candidates) {
         if (!c || typeof c !== "string") continue;
-        // if contains a '#id' fragment
         const fragIndex = c.indexOf("#");
         if (fragIndex >= 0) {
           const frag = c.slice(fragIndex + 1).trim();
           if (frag) {
-            // look up element by id
             const elById = doc.getElementById(frag);
             if (elById) return wrap(elById);
-            // sometimes fragment is like 'epub:type="pagebreak"!?' etc. ignore non-id
           }
         }
       }
 
       // 2) if selector-like string exists, try to use it as CSS selector
-      // pick result.selector if string
       if (typeof res.selector === "string") {
         try {
-          // sanitize a bit: remove 'css:' or 'xpath:' prefixes if present
           const sel = res.selector.replace(/^\s*(css:|xpath:)\s*/i, "").trim();
-          // try querySelector
           const el = doc.querySelector ? doc.querySelector(sel) : null;
           if (el) return wrap(el);
         } catch (e) {
-          // invalid selector — ignore
+          // ignore invalid selectors
         }
       }
 
-      // 3) try XPath if selector or pointer looks like an XPath (starts with / or //)
+      // 3) try XPath if selector looks like XPath
       const maybeXPath = (s) => typeof s === "string" && /^\s*(\/|\/\/)/.test(s);
       const xpathCandidate = (typeof res.selector === "string" && maybeXPath(res.selector)) ? res.selector : null;
       if (xpathCandidate) {
         try {
-          const xpath = xpathCandidate;
           const nsResolver = doc.createNSResolver(doc);
-          const result = doc.evaluate(xpath, doc, nsResolver, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+          const result = doc.evaluate(xpathCandidate, doc, nsResolver, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
           if (result && result.singleNodeValue) return wrap(result.singleNodeValue);
-        } catch (e) {
-          // ignore xpath failures
-        }
+        } catch (e) {}
       }
 
       // 4) text search fallback: look for short text from assertion description / test / name
@@ -161,13 +187,11 @@ export default function QCPage() {
 
       const findTextInNode = (text) => {
         if (!text || typeof text !== "string") return null;
-        const trimmed = text.trim().slice(0, 200); // limit length for search
-        // search for nodes containing that text
+        const trimmed = text.trim().slice(0, 200);
         const treeWalker = doc.createTreeWalker(doc.body || doc, NodeFilter.SHOW_TEXT, null, false);
         let node;
         while ((node = treeWalker.nextNode())) {
           if (node.nodeValue && node.nodeValue.includes(trimmed)) {
-            // return parent element
             return node.parentElement;
           }
         }
@@ -179,14 +203,12 @@ export default function QCPage() {
         if (el) return wrap(el);
       }
 
-      // 5) last resort: try to find first <body> or first meaningful section to return small part
+      // 5) last resort: return the first meaningful child
       const body = doc.querySelector && (doc.querySelector("body") || doc.documentElement);
       if (body && body.firstElementChild) {
-        // return outerHTML of first child
         return `<!-- HIGHLIGHT START -->\n${body.firstElementChild.outerHTML}\n<!-- HIGHLIGHT END -->`;
       }
 
-      // fallback: no snippet found — return full doc but still indicate no specific highlight
       return null;
     } catch (e) {
       console.warn("extractSnippetFromHtml failed:", e);
@@ -196,13 +218,12 @@ export default function QCPage() {
 
   /**
    * Robust attempt to infer a document path from an assertion.
-   * Tries common fields, then falls back to regex scanning of the assertion content.
+   * Tries common fields, then falls back to regex scanning.
    */
   function inferDocumentFromAssertion(a) {
     if (!a) return null;
     const tryVals = [];
 
-    // subject may be string or object
     const subj = a.subject || a["earl:subject"] || null;
     if (typeof subj === "string") tryVals.push(subj);
     if (subj && typeof subj === "object") {
@@ -214,7 +235,6 @@ export default function QCPage() {
     const res = a.result || a["earl:result"] || {};
     if (res.pointer) tryVals.push(res.pointer);
     if (res.selector) {
-      // selector could be object or string; stringify if object
       if (typeof res.selector === "string") tryVals.push(res.selector);
       else tryVals.push(JSON.stringify(res.selector));
     }
@@ -224,12 +244,10 @@ export default function QCPage() {
     if (a.path) tryVals.push(a.path);
     if (a.document) tryVals.push(a.document);
 
-    // direct fields sometimes used in Ace variants
     if (a.source) tryVals.push(a.source);
     if (a["@id"]) tryVals.push(a["@id"]);
     if (a.target) tryVals.push(a.target);
 
-    // inspect collected candidate strings for .xhtml/.html and OEBPS patterns
     for (const v of tryVals) {
       if (!v || typeof v !== "string") continue;
       const cleaned = v.split("#")[0].trim();
@@ -238,29 +256,23 @@ export default function QCPage() {
       }
     }
 
-    // fallback: scan the whole assertion object for anything that looks like a path/filename
     try {
       const s = JSON.stringify(a);
-      // look for /OEBPS/... or xhtml/... or any token that ends with .xhtml/.html
       const rx = /(?:[A-Za-z0-9_\/\-\:\.]*)(?:OEBPS\/|oebps\/|xhtml\/)?[A-Za-z0-9_\-\/\.]+?\.(?:xhtml|html)/gi;
       const matches = s.match(rx);
       if (matches && matches.length > 0) {
-        // prefer matches that contain OEBPS or xhtml/ else return first
         const prefer = matches.find(m => /oebps/i.test(m) || /xhtml\//i.test(m));
         return (prefer || matches[0]).replace(/^\.\/+/, "").split("#")[0];
       }
-
-      // another fallback: bare filenames like "nav.xhtml"
       const rx2 = /\b[A-Za-z0-9_\-]+?\.(?:xhtml|html)\b/gi;
       const matches2 = s.match(rx2);
       if (matches2 && matches2.length > 0) {
         return matches2[0];
       }
     } catch (e) {
-      console.warn("inferDocumentFromAssertion fallback regex failed:", e);
+      console.warn("inferDocumentFromAssertion fallback failed:", e);
     }
 
-    // Give up
     return null;
   }
 
@@ -271,19 +283,29 @@ export default function QCPage() {
       setIssueEditValue("");
       setIssueLoading(true);
       setIssueMessage("");
+      setIssueType("unknown");
 
       const docPath = inferDocumentFromAssertion(assertion);
       setIssueDocPath(docPath);
 
+      // try to set issue type from assertion fields (test/rule/title)
+      const issueTypeCandidate =
+        assertion?.test ||
+        assertion?.rule ||
+        assertion?.title ||
+        assertion?.name ||
+        (assertion.result && assertion.result.description) ||
+        "unknown";
+      setIssueType(typeof issueTypeCandidate === "string" ? issueTypeCandidate : "unknown");
+
       if (!docPath) {
-        // don't block with alert — show a friendly message and allow manual inspection
         setIssueMessage("Could not determine a stable document path for this issue. You may need to open the referenced XHTML file directly in an editor. See console for assertion details.");
         console.warn("Could not infer doc path for assertion:", assertion);
         setIssueLoading(false);
         return;
       }
 
-      // ask backend for the HTML for this document
+      // post JSON body with doc_path (backend expects { doc_path: ... })
       const res = await fetch(DOC_HTML_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -310,15 +332,15 @@ export default function QCPage() {
         // attempt to extract small snippet that corresponds to the assertion
         const snippet = extractSnippetFromHtml(html, assertion);
         if (snippet) {
-          // if a snippet found, put that into the editor (with highlight markers)
+          // snippet found
           setIssueHtml(html);
           setIssueEditValue(snippet);
           setIssueMessage("");
         } else {
-          // no snippet: show full document but inform user that the specific element couldn't be located
+          // no snippet: show full document but warn user
           setIssueHtml(html);
           setIssueEditValue(html);
-          setIssueMessage("No specific snippet could be located for this issue — the full document is loaded. Edit the highlighted part manually if you can identify it. (If you want only a precise fragment, implement server-side extraction or adjust the assertion selector.)");
+          setIssueMessage("No specific snippet could be located for this issue — the full document is loaded. Edit the highlighted part manually if you can identify it.");
         }
       }
     } catch (err) {
@@ -395,6 +417,7 @@ export default function QCPage() {
         <div style={{ border: "1px solid #e6e8eb", borderRadius: 8, padding: 10, background: "#fafafa" }}>
           <div style={{ fontWeight: 700, marginBottom: 8 }}>{selectedIssue ? `Issue selected` : "No issue selected yet."}</div>
           <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>{selectedIssue ? `Document: ${issueDocPath || "unknown"}` : ""}</div>
+          {selectedIssue && <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Issue type: {issueType}</div>}
 
           {issueMessage && <div style={{ marginBottom: 8, color: "#92400e", background: "#fff7ed", padding: 8, borderRadius: 6 }}>{issueMessage}</div>}
 
