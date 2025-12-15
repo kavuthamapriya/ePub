@@ -85,7 +85,27 @@ export default function QCPage() {
   };
 
   function getIssueType(assertion) {
-    if (!assertion) return "unknown";
+  if (!assertion) return "unknown";
+
+  const test = assertion["earl:test"] || assertion.test || null;
+
+  if (test) {
+    const ruleId = test["@id"] || test.id;
+    const title = test["dct:title"];
+
+    if (ruleId) {
+      for (const key of Object.keys(ISSUE_TYPE_MAP)) {
+        if (ruleId.toLowerCase().includes(key)) {
+          return ISSUE_TYPE_MAP[key];
+        }
+      }
+      return ruleId.split("/").pop(); // fallback readable id
+    }
+
+    if (title) return title;
+  }
+
+  // ⬇️ keep your existing fallback logic BELOW this
 
     // check many possible fields where a rule id might live
     const tryVals = [];

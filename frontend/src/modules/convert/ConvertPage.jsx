@@ -315,7 +315,7 @@ export default function ConvertPage() {
 
       {/* RIGHT: PDF + Accessible HTML source */}
       <aside style={rightPanel}>
-        <h3 style={{ margin: 0 }}>Accessible HTML (Source)</h3>
+        <h3 style={{ margin: 0 }}>PDF Preview</h3>
 
         {/* PDF preview */}
         <div
