@@ -1,17 +1,9 @@
-// src/modules/tagMapping/TagMapping.jsx
-import React from "react";
+import React, { useState } from "react";
 import { useConversionStore } from "../../store/useConversionStore";
 
-// ---------- Layout styles ----------
-const pageWrapper = {
-  padding: 20,
-};
+/* ---------------- Layout styles ---------------- */
 
-const titleStyle = {
-  fontSize: 22,
-  fontWeight: 700,
-  marginBottom: 6,
-};
+const pageWrapper = { padding: 20 };
 
 const subtitleStyle = {
   fontSize: 13,
@@ -21,7 +13,7 @@ const subtitleStyle = {
 
 const grid = {
   display: "grid",
-  gridTemplateColumns: "280px 1fr 280px",
+  gridTemplateColumns: "280px 1fr 320px",
   gap: 16,
 };
 
@@ -39,7 +31,8 @@ const cardTitle = {
   marginBottom: 10,
 };
 
-// ---------- Component ----------
+/* ---------------- Component ---------------- */
+
 export default function TagMapping() {
   const {
     epubToc,
@@ -49,15 +42,48 @@ export default function TagMapping() {
     selectedPageHref,
   } = useConversionStore();
 
+  /* ---------- Local QC state (section-level) ---------- */
+  const [qcLoading, setQcLoading] = useState(false);
+  const [qcIssues, setQcIssues] = useState([]);
+
+  /* ---------- Run QC for selected section ---------- */
+  async function runQCForSection() {
+    if (!selectedTocItem) return;
+
+    try {
+      setQcLoading(true);
+      setQcIssues([]);
+
+      const res = await fetch("http://localhost:8000/api/qc", {
+        method: "POST",
+      });
+
+      const data = await res.json();
+
+      const filtered = (data?.issues || []).filter((issue) => {
+        const src =
+          issue?.["earl:testSubject"]?.source ||
+          issue?.document ||
+          "";
+        return src.includes(selectedTocItem.href);
+      });
+
+      setQcIssues(filtered);
+    } catch (err) {
+      console.error("QC failed:", err);
+    } finally {
+      setQcLoading(false);
+    }
+  }
+
   return (
     <div style={pageWrapper}>
-      {/* <div style={titleStyle}>Tag Mapping</div> */}
       <div style={subtitleStyle}>
         Select a section from the EPUB Table of Contents to start mapping tags.
       </div>
 
       <div style={grid}>
-        {/* LEFT — EPUB TOC */}
+        {/* ---------------- LEFT: EPUB TOC ---------------- */}
         <section style={card}>
           <div style={cardTitle}>EPUB Contents</div>
 
@@ -95,7 +121,7 @@ export default function TagMapping() {
           )}
         </section>
 
-        {/* CENTER — TAGS FOR SELECTED PAGE */}
+        {/* ---------------- CENTER: TAGS ---------------- */}
         <section style={card}>
           <div style={cardTitle}>Tags in Selected Section</div>
 
@@ -117,7 +143,7 @@ export default function TagMapping() {
                 File: {selectedPageHref}
               </div>
 
-              {(!selectedPageTags || selectedPageTags.length === 0) ? (
+              {!selectedPageTags || selectedPageTags.length === 0 ? (
                 <div style={{ fontSize: 13, color: "#9ca3af" }}>
                   No tags detected on this page.
                 </div>
@@ -134,12 +160,50 @@ export default function TagMapping() {
           )}
         </section>
 
-        {/* RIGHT — ERROR LIST (placeholder) */}
+        {/* ---------------- RIGHT: QC / ERRORS ---------------- */}
         <section style={card}>
           <div style={cardTitle}>Error List</div>
-          <div style={{ fontSize: 13, color: "#6b7280" }}>
-            Accessibility issues for this section will appear here.
-          </div>
+
+          <button
+            onClick={runQCForSection}
+            disabled={!selectedTocItem || qcLoading}
+            style={{
+              width: "100%",
+              padding: "10px",
+              marginBottom: 12,
+              background: "#16a34a",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: 8,
+              cursor: selectedTocItem ? "pointer" : "not-allowed",
+            }}
+          >
+            {qcLoading ? "Running QC…" : "Run QC for this section"}
+          </button>
+
+          {qcIssues.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#6b7280" }}>
+              No issues found for this section.
+            </div>
+          ) : (
+            qcIssues.map((issue, idx) => (
+              <div
+                key={idx}
+                style={{
+                  border: "1px solid #fecaca",
+                  background: "#fff1f2",
+                  padding: 10,
+                  borderRadius: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <b>{issue["dct:description"] || issue.type}</b>
+                <div style={{ fontSize: 12 }}>
+                  Impact: {issue["earl:outcome"]}
+                </div>
+              </div>
+            ))
+          )}
         </section>
       </div>
     </div>

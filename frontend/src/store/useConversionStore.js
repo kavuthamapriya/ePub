@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 export const useConversionStore = create((set) => ({
+  
   // ---------------- Existing state ----------------
   publisher: "",
   epubFile: null,
@@ -36,6 +37,8 @@ setSelectedPageHref: (href) => set({ selectedPageHref: href }),
       },
     })),
 
+    
+
   resetMappings: () =>
     set({
       htmlTags: [],
@@ -55,6 +58,8 @@ setSelectedPageHref: (href) => set({ selectedPageHref: href }),
      /* ---------- NEW: EPUB TOC ---------- */
   epubToc: [],
   setEpubToc: (toc) => set({ epubToc: toc }),
+
+  
 
   /* ---------- NEW: selected page ---------- */
   selectedTocItem: null,

@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import QCReport from "./QCReport";
 import { useConversionStore } from "../../store/useConversionStore";
+import { Await } from "react-router-dom";
 
 /* Styles and URLs (keep same backend URLs if required) */
 const pageWrapper = { display: "flex", gap: 16, padding: 16, backgroundColor: "#f3f4f6", boxSizing: "border-box" };
@@ -106,7 +107,6 @@ export default function QCPage() {
   }
 
   // ⬇️ keep your existing fallback logic BELOW this
-
     // check many possible fields where a rule id might live
     const tryVals = [];
 
@@ -433,7 +433,7 @@ export default function QCPage() {
         </div>
 
         <hr />
-
+{/* 
         <h4>Issue HTML editor</h4>
         <p style={{ fontSize: 12, color: "#6b7280" }}>Click an issue in the middle panel to load its context HTML here. Changes are local to the browser only.</p>
 
@@ -474,9 +474,8 @@ export default function QCPage() {
 
               <div style={{ fontSize: 12, color: "#6b7280" }}>Note: edits here are only in the browser. To actually fix the EPUB you'll need a backend endpoint that writes the edited HTML back into the EPUB and re-runs QC.</div>
             </div>
-          </div>
+          </div> */}
+          </section>
         </div>
-      </section>
-    </div>
   );
 }

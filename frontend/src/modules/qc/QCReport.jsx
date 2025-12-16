@@ -163,7 +163,7 @@ export default function QCReport({
                 </div>
 
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                  <div
+                  {/* <div
                     style={{
                       background: "#e6e6e6",
                       padding: "4px 8px",
@@ -172,7 +172,7 @@ export default function QCReport({
                     }}
                   >
                     Impact: {getImpact(a)}
-                  </div>
+                  </div> */}
 
                   <div
                     style={{
@@ -186,9 +186,9 @@ export default function QCReport({
                   </div>
                 </div>
 
-                <div style={{ color: "#6b7280" }}>
+                {/* <div style={{ color: "#6b7280" }}>
                   Click to inspect this issue&apos;s HTML in the editor.
-                </div>
+                </div> */}
               </div>
             );
           })

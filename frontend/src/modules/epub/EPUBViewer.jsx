@@ -25,6 +25,7 @@ export default function EPUBViewer({ file }) {
       width: "100%",
       height: "100%",
       flow: "scrolled-doc",
+      manager: "continuous",
       spread: "none",
     });
 
