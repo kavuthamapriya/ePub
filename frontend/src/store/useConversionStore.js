@@ -1,30 +1,39 @@
-// src/store/useConversionStore.js
 import { create } from "zustand";
 
 export const useConversionStore = create((set) => ({
-  // Files & metadata
+  // ---------------- Existing state ----------------
   publisher: "",
   epubFile: null,
   pdfFile: null,
-
-  // HTML from backend (accessible_html)
   accessibleHtml: "",
 
-  // Tag mapping data
-  htmlTags: [],          // ["p","h1","span",...]
-  tagMappings: {},       // { p: "P", span: "P", ... }
+  htmlTags: [],
+  tagMappings: {},
 
-  // setters
+  // ---------------- NEW: Page context ----------------
+  currentTocItem: null,      // { label, href }
+  currentPageHtml: "",       // HTML of selected TOC page
+
+  // ---------------- Setters ----------------
+  selectedPageTags: [],
+selectedPageHref: null,
+
+setSelectedPageTags: (tags) => set({ selectedPageTags: tags }),
+setSelectedPageHref: (href) => set({ selectedPageHref: href }),
+
   setPublisher: (publisher) => set({ publisher }),
-  setEpubFile: (file) => set({ epubFile: file }),
-  setPdfFile: (file) => set({ pdfFile: file }),
+  setEpubFile: (epubFile) => set({ epubFile }),
+  setPdfFile: (pdfFile) => set({ pdfFile }),
   setAccessibleHtml: (html) => set({ accessibleHtml: html }),
 
+  // Tag mapping
   setHtmlTags: (tags) => set({ htmlTags: tags }),
-
-  setTagMapping: (tag, mapped) =>
+  setTagMapping: (tag, accessibleTag) =>
     set((state) => ({
-      tagMappings: { ...state.tagMappings, [tag]: mapped },
+      tagMappings: {
+        ...state.tagMappings,
+        [tag]: accessibleTag,
+      },
     })),
 
   resetMappings: () =>
@@ -32,4 +41,22 @@ export const useConversionStore = create((set) => ({
       htmlTags: [],
       tagMappings: {},
     }),
+
+  // ---------------- NEW setters ----------------
+  setCurrentTocItem: (item) =>
+    set({
+      currentTocItem: item,
+    }),
+
+  setCurrentPageHtml: (html) =>
+    set({
+      currentPageHtml: html,
+    }),
+     /* ---------- NEW: EPUB TOC ---------- */
+  epubToc: [],
+  setEpubToc: (toc) => set({ epubToc: toc }),
+
+  /* ---------- NEW: selected page ---------- */
+  selectedTocItem: null,
+  setSelectedTocItem: (item) => set({ selectedTocItem: item }),
 }));

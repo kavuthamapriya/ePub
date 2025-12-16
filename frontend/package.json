@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "epubjs": "^0.3.93",
     "prop-types": "^15.8.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

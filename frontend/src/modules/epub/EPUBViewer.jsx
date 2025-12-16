@@ -1,124 +1,99 @@
+// src/modules/epub/EPUBViewer.jsx
 import React, { useEffect, useRef } from "react";
+import ePub from "epubjs";
+import { useConversionStore } from "../../store/useConversionStore";
 
-function EPUBViewer({ file }) {
+export default function EPUBViewer({ file }) {
   const viewerRef = useRef(null);
-  const bookRef = useRef(null); // keep track of current book
+  const renditionRef = useRef(null);
+
+  const {
+    setEpubToc,
+    selectedTocItem,
+    setSelectedPageTags,
+    setSelectedPageHref,
+  } = useConversionStore();
 
   useEffect(() => {
-    if (!file) {
-      console.log("EPUBViewer: no file yet");
-      return;
-    }
+    if (!file || !viewerRef.current) return;
 
-    if (!window.ePub) {
-      console.error("EPUBViewer: window.ePub not found – EPUB.js not loaded");
-      return;
-    }
+    viewerRef.current.innerHTML = "";
 
-    const container = viewerRef.current;
-    if (!container) {
-      console.error("EPUBViewer: viewerRef is null");
-      return;
-    }
+    const book = ePub(file);
 
-    // Clean up any previous book/rendition
-    if (bookRef.current) {
-      try {
-        bookRef.current.destroy && bookRef.current.destroy();
-      } catch (e) {
-        console.warn("EPUBViewer: error destroying previous book", e);
-      }
-      container.innerHTML = "";
-      bookRef.current = null;
-    }
+    const rendition = book.renderTo(viewerRef.current, {
+      width: "100%",
+      height: "100%",
+      flow: "scrolled-doc",
+      spread: "none",
+    });
 
-    console.log(
-      "EPUBViewer: received file:",
-      file.name,
-      file.type,
-      file.size
-    );
+    rendition.display();
+    renditionRef.current = rendition;
 
-    const reader = new FileReader();
+    // ✅ Load TOC
+    book.loaded.navigation.then((nav) => {
+      setEpubToc(
+        nav.toc.map((item) => ({
+          label: item.label,
+          href: item.href,
+        }))
+      );
+    });
 
-    reader.onload = () => {
-      try {
-        const arrayBuffer = reader.result;
-        console.log(
-          "EPUBViewer: FileReader loaded, size:",
-          arrayBuffer.byteLength
-        );
+    // ✅ CORE: Extract tags ONLY from rendered page
+    rendition.on("rendered", (section) => {
+      const iframe = viewerRef.current.querySelector("iframe");
+      if (!iframe) return;
 
-        const book = window.ePub(arrayBuffer);
-        bookRef.current = book;
+      const doc = iframe.contentDocument;
+      if (!doc) return;
 
-        const width = container.clientWidth || 600;
-        const height = container.clientHeight || 800;
-        console.log("EPUBViewer: renderTo width/height:", width, height);
+      const skip = new Set([
+        "html",
+        "head",
+        "body",
+        "meta",
+        "link",
+        "script",
+        "style",
+        "title",
+      ]);
 
-        const rendition = book.renderTo(container, {
-          width,
-          height,
-          flow: "scrolled-doc",
-          spread: "none",
-          manager: "continuous",
-          allowScriptedContent: true,
-        });
+      const tags = new Set();
 
-        rendition
-          .display()
-          .then(() => console.log("EPUBViewer: rendition displayed"))
-          .catch((err) => console.error("EPUBViewer: render error", err));
-      } catch (err) {
-        console.error("EPUBViewer: error creating book/rendition", err);
-      }
-    };
+      doc.querySelectorAll("*").forEach((el) => {
+        const tag = el.tagName.toLowerCase();
+        if (!skip.has(tag)) tags.add(tag);
+      });
 
-    reader.onerror = (err) => {
-      console.error("EPUBViewer: FileReader error", err);
-    };
+      // ✅ Store page context globally
+      setSelectedPageHref(section.href);
+      setSelectedPageTags(Array.from(tags).sort());
+    });
 
-    reader.readAsArrayBuffer(file);
-
-    // Cleanup when component unmounts or file changes
     return () => {
-      if (bookRef.current) {
-        try {
-          bookRef.current.destroy && bookRef.current.destroy();
-        } catch (e) {
-          console.warn("EPUBViewer: error destroying book on cleanup", e);
-        }
-        bookRef.current = null;
-      }
-      if (container) {
-        container.innerHTML = "";
-      }
+      rendition.destroy();
+      book.destroy();
     };
   }, [file]);
 
+  // Jump to TOC selection
+  useEffect(() => {
+    if (selectedTocItem && renditionRef.current) {
+      renditionRef.current.display(selectedTocItem.href);
+    }
+  }, [selectedTocItem]);
+
   return (
     <div
+      ref={viewerRef}
       style={{
         width: "100%",
         height: "100%",
-        minHeight: "600px",
-        border: "1px solid #d1d5db",
-        borderRadius: "4px",
         overflow: "auto",
-        backgroundColor: "#ffffff",
+        background: "#fff",
       }}
-    >
-      <div
-        ref={viewerRef}
-        id="epub-viewer"
-        style={{
-          width: "100%",
-          height: "100%",
-          minHeight: "600px",
-        }}
-      ></div>
-    </div>
+    />
   );
 }
-
-export default EPUBViewer;

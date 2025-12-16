@@ -1,6 +1,6 @@
 import React from "react";
 import ConvertPage from "./modules/convert/ConvertPage";
-import MappingPage from "./modules/mapping/MappingPage";
+import MappingPage from "./modules/mapping/TagMappingPage";
 import QCPage from "./modules/qc/QCPage";
 
 function App() {
