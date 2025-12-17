@@ -1,28 +1,43 @@
-import React, { useState } from "react";
+// src/modules/tagMapping/TagMapping.jsx
+import React from "react";
 import { useConversionStore } from "../../store/useConversionStore";
 
-/* ---------------- Layout styles ---------------- */
+/* ----------------------------
+   Constants
+----------------------------- */
+const ACCESSIBILITY_OPTIONS = [
+  "Not mapped",
+  "Chapter Title",
+  "Section Title",
+  "Paragraph",
+  "Figure",
+  "Table",
+  "List",
+  "Reference",
+];
 
+/* ----------------------------
+   Styles
+----------------------------- */
 const pageWrapper = { padding: 20 };
 
 const subtitleStyle = {
   fontSize: 13,
   color: "#6b7280",
-  marginBottom: 20,
+  marginBottom: 16,
 };
 
 const grid = {
   display: "grid",
-  gridTemplateColumns: "280px 1fr 320px",
+  gridTemplateColumns: "280px 1fr 300px",
   gap: 16,
 };
 
 const card = {
-  background: "#ffffff",
+  background: "#fff",
   borderRadius: 12,
   padding: 14,
   boxShadow: "0 1px 3px rgba(15,23,42,0.08)",
-  minHeight: 420,
 };
 
 const cardTitle = {
@@ -31,8 +46,9 @@ const cardTitle = {
   marginBottom: 10,
 };
 
-/* ---------------- Component ---------------- */
-
+/* ----------------------------
+   Component
+----------------------------- */
 export default function TagMapping() {
   const {
     epubToc,
@@ -40,41 +56,15 @@ export default function TagMapping() {
     setSelectedTocItem,
     selectedPageTags,
     selectedPageHref,
+    tagMappings,
+    setTagMapping,
   } = useConversionStore();
 
-  /* ---------- Local QC state (section-level) ---------- */
-  const [qcLoading, setQcLoading] = useState(false);
-  const [qcIssues, setQcIssues] = useState([]);
+  const currentMappings = tagMappings?.[selectedPageHref] || {};
 
-  /* ---------- Run QC for selected section ---------- */
-  async function runQCForSection() {
-    if (!selectedTocItem) return;
-
-    try {
-      setQcLoading(true);
-      setQcIssues([]);
-
-      const res = await fetch("http://localhost:8000/api/qc", {
-        method: "POST",
-      });
-
-      const data = await res.json();
-
-      const filtered = (data?.issues || []).filter((issue) => {
-        const src =
-          issue?.["earl:testSubject"]?.source ||
-          issue?.document ||
-          "";
-        return src.includes(selectedTocItem.href);
-      });
-
-      setQcIssues(filtered);
-    } catch (err) {
-      console.error("QC failed:", err);
-    } finally {
-      setQcLoading(false);
-    }
-  }
+  const unmappedTags = selectedPageTags?.filter(
+    (tag) => !currentMappings[tag] || currentMappings[tag] === "Not mapped"
+  );
 
   return (
     <div style={pageWrapper}>
@@ -87,47 +77,52 @@ export default function TagMapping() {
         <section style={card}>
           <div style={cardTitle}>EPUB Contents</div>
 
-          {!epubToc || epubToc.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#6b7280" }}>
-              No TOC available. Load an EPUB first.
-            </div>
-          ) : (
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {epubToc.map((item) => {
+          <div
+            style={{
+              maxHeight: 420,
+              overflowY: "auto",
+              paddingRight: 6,
+            }}
+          >
+            {!epubToc?.length ? (
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                No TOC available.
+              </div>
+            ) : (
+              epubToc.map((item) => {
                 const active = selectedTocItem?.href === item.href;
-
                 return (
-                  <li key={item.href} style={{ marginBottom: 6 }}>
-                    <button
-                      onClick={() => setSelectedTocItem(item)}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "6px 8px",
-                        borderRadius: 6,
-                        border: "none",
-                        background: active ? "#2563eb" : "transparent",
-                        color: active ? "#ffffff" : "#1f2937",
-                        cursor: "pointer",
-                        fontSize: 13,
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  </li>
+                  <button
+                    key={item.href}
+                    onClick={() => setSelectedTocItem(item)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "6px 8px",
+                      marginBottom: 4,
+                      borderRadius: 6,
+                      border: "none",
+                      background: active ? "#2563eb" : "transparent",
+                      color: active ? "#fff" : "#111827",
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    {item.label}
+                  </button>
                 );
-              })}
-            </ul>
-          )}
+              })
+            )}
+          </div>
         </section>
 
-        {/* ---------------- CENTER: TAGS ---------------- */}
+        {/* ---------------- CENTER: TAG MAPPING ---------------- */}
         <section style={card}>
           <div style={cardTitle}>Tags in Selected Section</div>
 
           {!selectedTocItem ? (
             <div style={{ fontSize: 13, color: "#6b7280" }}>
-              Choose a TOC item to view its tags.
+              Select a TOC item to view tags.
             </div>
           ) : (
             <>
@@ -135,7 +130,7 @@ export default function TagMapping() {
                 style={{
                   fontSize: 12,
                   color: "#6b7280",
-                  marginBottom: 8,
+                  marginBottom: 10,
                 }}
               >
                 Section: <b>{selectedTocItem.label}</b>
@@ -143,66 +138,126 @@ export default function TagMapping() {
                 File: {selectedPageHref}
               </div>
 
-              {!selectedPageTags || selectedPageTags.length === 0 ? (
-                <div style={{ fontSize: 13, color: "#9ca3af" }}>
-                  No tags detected on this page.
-                </div>
-              ) : (
-                <ul style={{ paddingLeft: 16 }}>
-                  {selectedPageTags.map((tag) => (
-                    <li key={tag} style={{ fontSize: 13, marginBottom: 4 }}>
-                      &lt;{tag}&gt;
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <div
+                style={{
+                  maxHeight: 420,
+                  overflowY: "auto",
+                  paddingRight: 6,
+                }}
+              >
+                {!selectedPageTags?.length ? (
+                  <div style={{ fontSize: 13, color: "#9ca3af" }}>
+                    No tags found on this page.
+                  </div>
+                ) : (
+                  selectedPageTags.map((tag) => {
+                    const value = currentMappings[tag] || "Not mapped";
+                    const isMapped = value !== "Not mapped";
+
+                    return (
+                      <div
+                        key={tag}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          marginBottom: 8,
+                          padding: 10,
+                          borderRadius: 8,
+                          border: "1px solid #e5e7eb",
+                          background: "#fffaf0",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 70,
+                            fontFamily: "monospace",
+                            fontSize: 13,
+                          }}
+                        >
+                          &lt;{tag}&gt;
+                        </div>
+
+                        <select
+                          value={value}
+                          onChange={(e) =>
+                            setTagMapping(
+                              selectedPageHref,
+                              tag,
+                              e.target.value
+                            )
+                          }
+                          style={{
+                            flex: 1,
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            fontSize: 13,
+                          }}
+                        >
+                          {ACCESSIBILITY_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+
+                        {/* ✅ Green tick */}
+                        <div style={{ width: 20, textAlign: "center" }}>
+                          {isMapped && (
+                            <span style={{ color: "#16a34a", fontSize: 16 }}>
+                              ✔
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </>
           )}
         </section>
 
-        {/* ---------------- RIGHT: QC / ERRORS ---------------- */}
+        {/* ---------------- RIGHT: QC + ERRORS ---------------- */}
         <section style={card}>
           <div style={cardTitle}>Error List</div>
 
           <button
-            onClick={runQCForSection}
-            disabled={!selectedTocItem || qcLoading}
+            disabled={!selectedTocItem}
             style={{
               width: "100%",
               padding: "10px",
               marginBottom: 12,
-              background: "#16a34a",
-              color: "#ffffff",
+              background: selectedTocItem ? "#16a34a" : "#9ca3af",
+              color: "#fff",
               border: "none",
               borderRadius: 8,
               cursor: selectedTocItem ? "pointer" : "not-allowed",
             }}
           >
-            {qcLoading ? "Running QC…" : "Run QC for this section"}
+            Run QC for this section
           </button>
 
-          {qcIssues.length === 0 ? (
+          {unmappedTags?.length > 0 && (
+            <>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                Unmapped Tags
+              </div>
+              <ul style={{ paddingLeft: 16 }}>
+                {unmappedTags.map((tag) => (
+                  <li key={tag} style={{ color: "#dc2626", fontSize: 13 }}>
+                    &lt;{tag}&gt;
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {(!unmappedTags || unmappedTags.length === 0) && (
             <div style={{ fontSize: 13, color: "#6b7280" }}>
               No issues found for this section.
             </div>
-          ) : (
-            qcIssues.map((issue, idx) => (
-              <div
-                key={idx}
-                style={{
-                  border: "1px solid #fecaca",
-                  background: "#fff1f2",
-                  padding: 10,
-                  borderRadius: 8,
-                  marginBottom: 8,
-                }}
-              >
-                <b>{issue["dct:description"] || issue.type}</b>
-                <div style={{ fontSize: 12 }}>
-                  Impact: {issue["earl:outcome"]}
-                </div>
-              </div>
-            ))
           )}
         </section>
       </div>

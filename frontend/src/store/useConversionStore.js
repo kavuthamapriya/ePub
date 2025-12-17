@@ -45,6 +45,22 @@ setSelectedPageHref: (href) => set({ selectedPageHref: href }),
       tagMappings: {},
     }),
 
+    
+ tagMappings: {},
+
+setTagMapping: (href, tag, value) =>
+  set((state) => ({
+    tagMappings: {
+      ...state.tagMappings,
+      [href]: {
+        ...(state.tagMappings[href] || {}),
+        [tag]: value,
+      },
+    },
+  })),
+
+
+
   // ---------------- NEW setters ----------------
   setCurrentTocItem: (item) =>
     set({
