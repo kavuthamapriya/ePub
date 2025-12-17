@@ -375,10 +375,10 @@ export default function QCPage() {
   }
 
   function downloadFullReport() {
-    if (!reportZipB64) {
-      alert("No DAISY Ace report available yet. Run QC first.");
-      return;
-    }
+    // if (!reportZipB64) {
+    //   alert("No DAISY Ace report available yet. Run QC first.");
+    //   return;
+    // }
     try {
       const binary = atob(reportZipB64);
       const bytes = new Uint8Array(binary.length);
@@ -407,24 +407,24 @@ export default function QCPage() {
     <div style={pageWrapper}>
       <section style={leftPanel}>
         <h3>QC Controls</h3>
-        <p style={{ fontSize: 13, color: "#4b5563" }}>Runs the DAISY Ace EPUB accessibility checker (WCAG / EPUB Accessibility).</p>
+        {/* <p style={{ fontSize: 13, color: "#4b5563" }}>Runs the DAISY Ace EPUB accessibility checker (WCAG / EPUB Accessibility).</p> */}
 
-        <button onClick={runQc} disabled={loading} style={{ width: "100%", marginTop: 8, padding: "10px 12px", borderRadius: 6, border: "none", backgroundColor: loading ? "#9ca3af" : "#16a34a", color: "#fff", fontWeight: 600, cursor: loading ? "default" : "pointer" }}>
+        {/* <button onClick={runQc} disabled={loading} style={{ width: "100%", marginTop: 8, padding: "10px 12px", borderRadius: 6, border: "none", backgroundColor: loading ? "#9ca3af" : "#16a34a", color: "#fff", fontWeight: 600, cursor: loading ? "default" : "pointer" }}>
           {loading ? "Running QC..." : "Run QC on current EPUB"}
-        </button>
+        </button> */}
 
-        <hr style={{ margin: "16px 0" }} />
+        {/* <hr style={{ margin: "16px 0" }} /> */}
 
-        <button onClick={downloadFullReport} disabled={!reportZipB64} style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "none", backgroundColor: reportZipB64 ? "#2563eb" : "#9ca3af", color: "#fff", fontWeight: 600, cursor: reportZipB64 ? "pointer" : "default" }}>
+        <button onClick={downloadFullReport}  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "none", backgroundColor: reportZipB64 ? "#2563eb" : "#9ca3af", color: "#fff", fontWeight: 600, cursor: reportZipB64 ? "pointer" : "default" }}>
           Download full DAISY Ace report
         </button>
       </section>
 
-      <section style={middlePanel}>
+      {/* <section style={middlePanel}>
         <QCReport summary={qcSummary} rawReport={qcRaw} onSelectIssue={handleSelectIssue} selectedIssue={selectedIssue} />
-      </section>
+      </section> */}
 
-      <section style={rightPanel}>
+      <section style={middlePanel}>
         <h3>DAISY Ace HTML Report</h3>
         <p style={{ fontSize: 13, color: "#4b5563" }}>This is the full DAISY Ace HTML report for the current EPUB.</p>
 
@@ -432,7 +432,6 @@ export default function QCPage() {
           {qcRaw && qcRaw["html_report"] ? <div dangerouslySetInnerHTML={{ __html: qcRaw["html_report"] }} /> : <div style={{ color: "#6b7280" }}>Run QC to view the full DAISY Ace HTML report here.</div>}
         </div>
 
-        <hr />
 {/* 
         <h4>Issue HTML editor</h4>
         <p style={{ fontSize: 12, color: "#6b7280" }}>Click an issue in the middle panel to load its context HTML here. Changes are local to the browser only.</p>

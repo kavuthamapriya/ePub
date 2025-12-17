@@ -1,83 +1,56 @@
 import { create } from "zustand";
 
 export const useConversionStore = create((set) => ({
-  
-  // ---------------- Existing state ----------------
+  /* ---------- Files ---------- */
   publisher: "",
   epubFile: null,
   pdfFile: null,
+
+  /* ---------- EPUB-wide HTML ---------- */
   accessibleHtml: "",
 
-  htmlTags: [],
-  tagMappings: {},
+  /* ---------- TOC ---------- */
+  epubToc: [],
+  selectedTocItem: null,
 
-  // ---------------- NEW: Page context ----------------
-  currentTocItem: null,      // { label, href }
-  currentPageHtml: "",       // HTML of selected TOC page
-
-  // ---------------- Setters ----------------
+  /* ---------- Selected page context ---------- */
+  selectedPageHref: null,
+  selectedPageHtml: "",
   selectedPageTags: [],
-selectedPageHref: null,
 
-setSelectedPageTags: (tags) => set({ selectedPageTags: tags }),
-setSelectedPageHref: (href) => set({ selectedPageHref: href }),
+  /* ---------- Tag mapping (per page) ---------- */
+  tagMappings: {}, // { [href]: { tag: value } }
 
+  /* ---------- Setters ---------- */
   setPublisher: (publisher) => set({ publisher }),
   setEpubFile: (epubFile) => set({ epubFile }),
   setPdfFile: (pdfFile) => set({ pdfFile }),
   setAccessibleHtml: (html) => set({ accessibleHtml: html }),
 
-  // Tag mapping
-  setHtmlTags: (tags) => set({ htmlTags: tags }),
-  setTagMapping: (tag, accessibleTag) =>
+  setEpubToc: (toc) => set({ epubToc: toc }),
+  setSelectedTocItem: (item) => set({ selectedTocItem: item }),
+
+  setSelectedPageHref: (href) => set({ selectedPageHref: href }),
+  setSelectedPageHtml: (html) => set({ selectedPageHtml: html }),
+  setSelectedPageTags: (tags) => set({ selectedPageTags: tags }),
+
+  setTagMapping: (href, tag, value) =>
     set((state) => ({
       tagMappings: {
         ...state.tagMappings,
-        [tag]: accessibleTag,
+        [href]: {
+          ...(state.tagMappings[href] || {}),
+          [tag]: value,
+        },
       },
     })),
 
-    
-
   resetMappings: () =>
     set({
-      htmlTags: [],
+      selectedTocItem: null,
+      selectedPageHref: null,
+      selectedPageHtml: "",
+      selectedPageTags: [],
       tagMappings: {},
     }),
-
-    
- tagMappings: {},
-
-setTagMapping: (href, tag, value) =>
-  set((state) => ({
-    tagMappings: {
-      ...state.tagMappings,
-      [href]: {
-        ...(state.tagMappings[href] || {}),
-        [tag]: value,
-      },
-    },
-  })),
-
-
-
-  // ---------------- NEW setters ----------------
-  setCurrentTocItem: (item) =>
-    set({
-      currentTocItem: item,
-    }),
-
-  setCurrentPageHtml: (html) =>
-    set({
-      currentPageHtml: html,
-    }),
-     /* ---------- NEW: EPUB TOC ---------- */
-  epubToc: [],
-  setEpubToc: (toc) => set({ epubToc: toc }),
-
-  
-
-  /* ---------- NEW: selected page ---------- */
-  selectedTocItem: null,
-  setSelectedTocItem: (item) => set({ selectedTocItem: item }),
 }));

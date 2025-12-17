@@ -3,6 +3,9 @@ import React, { useState, useEffect } from "react";
 import EPUBViewer from "../epub/EPUBViewer";
 import PDFViewer from "../pdf/PDFViewer";
 import { useConversionStore } from "../../store/useConversionStore";
+import { useQCStore } from "../../store/useQCStore";
+
+
 
 const headerHeight = 88;
 const PREVIEW_HEIGHT = 520;
@@ -131,7 +134,8 @@ export default function ConvertPage() {
   const [localEpub, setLocalEpub] = useState(epubFile);
   const [localPdf, setLocalPdf] = useState(pdfFile);
   const [loading, setLoading] = useState(false);
-  const [previewMode, setPreviewMode] = useState("pdf"); // 🔑 NEW
+  const [previewMode, setPreviewMode] = useState("pdf"); 
+  
 
   useEffect(() => {
     setLocalEpub(epubFile);

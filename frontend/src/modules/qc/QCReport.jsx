@@ -134,7 +134,7 @@ export default function QCReport({
         </div>
       </div>
 
-      <h3>Accessibility Issues</h3>
+      {/* <h3>Accessibility Issues</h3> */}
 
       <div style={{ maxHeight: "60vh", overflow: "auto", paddingRight: 8 }}>
         {assertions.length === 0 ? (
