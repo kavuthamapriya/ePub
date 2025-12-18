@@ -21,15 +21,9 @@ const ACCESSIBILITY_OPTIONS = [
 ----------------------------- */
 const pageWrapper = { padding: 20 };
 
-const subtitleStyle = {
-  fontSize: 13,
-  color: "#6b7280",
-  marginBottom: 16,
-};
-
 const grid = {
   display: "grid",
-  gridTemplateColumns: "280px 1fr 300px",
+  gridTemplateColumns: "280px 1fr 320px",
   gap: 16,
 };
 
@@ -46,27 +40,25 @@ const cardTitle = {
   marginBottom: 10,
 };
 
-/* ----------------------------
-   Component
------------------------------ */
 export default function TagMapping() {
   const {
     epubFile,
     epubToc,
     selectedTocItem,
     setSelectedTocItem,
-    selectedPageTags,
     selectedPageHref,
     selectedPageHtml,
+    selectedPageTags,
     tagMappings,
     setTagMapping,
+    setSelectedPageHref,
+    setSelectedPageHtml,
   } = useConversionStore();
 
-  // Do not render before EPUB upload
+  // ⛔ Do not render before EPUB upload
   if (!epubFile) return null;
 
   const currentMappings = tagMappings?.[selectedPageHref] || {};
-
   const unmappedTags =
     selectedPageTags?.filter(
       (tag) =>
@@ -76,13 +68,10 @@ export default function TagMapping() {
 
   return (
     <div style={pageWrapper}>
-      {/* ✅ QC summary bar */}
+      {/* QC summary */}
       <QCSummaryBar />
 
       <h2 style={{ marginTop: 10 }}>Tag Mapping</h2>
-      <p style={subtitleStyle}>
-        Select a section from the EPUB Table of Contents to start mapping tags.
-      </p>
 
       <div style={grid}>
         {/* ---------------- LEFT: EPUB TOC ---------------- */}
@@ -90,18 +79,26 @@ export default function TagMapping() {
           <div style={cardTitle}>EPUB Contents</div>
 
           <div style={{ maxHeight: 420, overflowY: "auto" }}>
-            {epubToc?.map((item) => {
+            {epubToc.map((item) => {
               const active = selectedTocItem?.href === item.href;
 
               return (
                 <button
                   key={item.href}
                   onClick={async () => {
-                  setSelectedTocItem(item);
-                  const html = await loadSectionHtml(epubBook, item.href);
-                  setSelectedPageHtml(html || "");
-}}
+                    setSelectedTocItem(item);
+                    setSelectedPageHref(item.href);
 
+                    // ✅ LOAD XHTML DIRECTLY (same source used for tag extraction)
+                    const res = await fetch(
+                      `http://localhost:8000/api/epub/xhtml?href=${encodeURIComponent(
+                        item.href
+                      )}`
+                    );
+
+                    const html = await res.text();
+                    setSelectedPageHtml(html);
+                  }}
                   style={{
                     width: "100%",
                     textAlign: "left",
@@ -110,7 +107,7 @@ export default function TagMapping() {
                     borderRadius: 6,
                     border: "none",
                     background: active ? "#2563eb" : "transparent",
-                    color: active ? "#ffffff" : "#111827",
+                    color: active ? "#fff" : "#111827",
                     cursor: "pointer",
                     fontSize: 13,
                   }}
@@ -122,13 +119,13 @@ export default function TagMapping() {
           </div>
         </section>
 
-        {/* ---------------- CENTER: TAGS + HTML ---------------- */}
+        {/* ---------------- CENTER: TAGS + XHTML ---------------- */}
         <section style={card}>
           <div style={cardTitle}>Tags in Selected Section</div>
 
           {!selectedTocItem ? (
             <div style={{ fontSize: 13, color: "#6b7280" }}>
-              Select a TOC item to view tags and HTML.
+              Select a TOC item to view tags and XHTML.
             </div>
           ) : (
             <>
@@ -138,7 +135,6 @@ export default function TagMapping() {
                 File: {selectedPageHref}
               </div>
 
-              {/* Two-column inner layout */}
               <div
                 style={{
                   display: "grid",
@@ -146,17 +142,11 @@ export default function TagMapping() {
                   gap: 12,
                 }}
               >
-                {/* LEFT: TAG MAPPING */}
-                <div
-                  style={{
-                    maxHeight: 380,
-                    overflowY: "auto",
-                    paddingRight: 6,
-                  }}
-                >
-                  {selectedPageTags?.map((tag) => {
+                {/* TAG MAPPING */}
+                <div style={{ maxHeight: 380, overflowY: "auto" }}>
+                  {selectedPageTags.map((tag) => {
                     const value = currentMappings[tag] || "Not mapped";
-                    const isMapped = value !== "Not mapped";
+                    const mapped = value !== "Not mapped";
 
                     return (
                       <div
@@ -172,13 +162,7 @@ export default function TagMapping() {
                           background: "#fffaf0",
                         }}
                       >
-                        <div
-                          style={{
-                            width: 70,
-                            fontFamily: "monospace",
-                            fontSize: 13,
-                          }}
-                        >
+                        <div style={{ width: 70, fontFamily: "monospace" }}>
                           &lt;{tag}&gt;
                         </div>
 
@@ -191,13 +175,7 @@ export default function TagMapping() {
                               e.target.value
                             )
                           }
-                          style={{
-                            flex: 1,
-                            padding: "6px 10px",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            fontSize: 13,
-                          }}
+                          style={{ flex: 1 }}
                         >
                           {ACCESSIBILITY_OPTIONS.map((opt) => (
                             <option key={opt} value={opt}>
@@ -206,18 +184,15 @@ export default function TagMapping() {
                           ))}
                         </select>
 
-                        {/* ✅ Tick */}
-                        <div style={{ width: 20, textAlign: "center" }}>
-                          {isMapped && (
-                            <span style={{ color: "#16a34a" }}>✔</span>
-                          )}
-                        </div>
+                        {mapped && (
+                          <span style={{ color: "#16a34a" }}>✔</span>
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
-                {/* RIGHT: PAGE HTML SOURCE */}
+                {/* XHTML SOURCE PREVIEW */}
                 <div
                   style={{
                     maxHeight: 380,
@@ -235,7 +210,7 @@ export default function TagMapping() {
                     selectedPageHtml
                   ) : (
                     <span style={{ color: "#9ca3af" }}>
-                      No HTML available for this section.
+                      XHTML not loaded for this section.
                     </span>
                   )}
                 </div>
@@ -250,12 +225,12 @@ export default function TagMapping() {
 
           {unmappedTags.length > 0 ? (
             <>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                Unmapped Tags
-              </div>
-              <ul style={{ paddingLeft: 16 }}>
+              <p style={{ fontSize: 13, color: "#374151" }}>
+                Daisy detected unmapped elements in this section:
+              </p>
+              <ul>
                 {unmappedTags.map((tag) => (
-                  <li key={tag} style={{ color: "#dc2626", fontSize: 13 }}>
+                  <li key={tag} style={{ color: "#dc2626" }}>
                     &lt;{tag}&gt;
                   </li>
                 ))}
