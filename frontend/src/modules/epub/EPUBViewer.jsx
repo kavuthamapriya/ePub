@@ -80,6 +80,26 @@ export default function EPUBViewer({ file }) {
   }, [file]);
 
   // Jump to TOC selection
+
+const onTocClick = async (href) => {
+  setSelectedPageHref(href);
+
+  const res = await fetch("http://localhost:8000/api/qc/doc_html", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ doc_path: href }),
+  });
+
+  const data = await res.json();
+
+  if (data.html) {
+    setCurrentHtml(data.html);
+  } else {
+    setCurrentHtml("xhtml not loaded for this section");
+  }
+};
+
+
   useEffect(() => {
     if (selectedTocItem && renditionRef.current) {
       renditionRef.current.display(selectedTocItem.href);

@@ -1,26 +1,20 @@
-import React from "react";
-import { useTagMappingStore } from "./TagMappingStore";
+import { useTagMappingStore } from "../../store/TagMappingStore";
+import TagRow from "./TagRow";
 
-const htmlTagItem = {
-  padding: "6px 10px",
-  borderBottom: "1px solid #e1e4e8",
-};
+export default function HTMLTagList({ tags }) {
+  const { setTagMapping } = useTagMappingStore();
 
-function HTMLTagList() {
-  const htmlTags = useTagMappingStore((s) => s.htmlTags);
+  if (!tags.length) return <p>No tags found</p>;
 
   return (
-    <div>
-      <h3>HTML Tags</h3>
-      <div>
-        {htmlTags.map((tag, idx) => (
-          <div key={idx} style={htmlTagItem}>
-            {tag}
-          </div>
-        ))}
-      </div>
-    </div>
+    <>
+      {tags.map(tag => (
+        <TagRow
+          key={tag}
+          tag={tag}
+          onChange={val => setTagMapping(tag, val)}
+        />
+      ))}
+    </>
   );
 }
-
-export default HTMLTagList;
