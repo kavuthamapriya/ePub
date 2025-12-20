@@ -1,6 +1,6 @@
 import React from "react";
 import ConvertPage from "./modules/convert/ConvertPage";
-import MappingPage from "./modules/mapping/TagMappingPage";
+import EpubWorkspace from "./modules/epub/EpubWorkspace";
 import QCPage from "./modules/qc/QCPage";
 
 function App() {
@@ -25,7 +25,7 @@ function App() {
           fontWeight: 600,
         }}
       >
-        Accessible EPUB System
+        Accessible EPUB Converter
       </header>
 
       {/* Convert Section */}
@@ -37,7 +37,8 @@ function App() {
       {/* Tag Mapping Section */}
       <section style={{ marginBottom: "24px" }}>
         <h2 style={{ margin: "0 0 8px 0", color: "#111827" }}>Tag Mapping</h2>
-        <MappingPage />
+        {/* ✅ IMPORTANT CHANGE HERE */}
+        <EpubWorkspace />
       </section>
 
       {/* QC Section */}

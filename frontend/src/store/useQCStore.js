@@ -7,3 +7,4 @@ export const useQCStore = create((set) => ({
   setIssues: (issues) => set({ issues }),
   setSelectedIssue: (issue) => set({ selectedIssue: issue }),
 }));
+

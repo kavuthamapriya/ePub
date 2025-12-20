@@ -118,18 +118,21 @@ function extractSemanticTagsFromHtml(htmlString) {
 }
 
 export default function ConvertPage() {
-  const {
-    epubFile,
-    pdfFile,
-    accessibleHtml,
-    publisher,
-    setPublisher,
-    setEpubFile,
-    setPdfFile,
-    setAccessibleHtml,
-    setHtmlTags,
-    resetMappings,
-  } = useConversionStore();
+ const {
+  epubFile,
+  pdfFile,
+  accessibleHtml,
+  publisher,
+  setPublisher,
+  setEpubFile,
+  setPdfFile,
+  setAccessibleHtml,
+  setHtmlTags,
+  resetMappings,
+  setBookId,       // ✅ ADD
+  setEpubToc,      // ✅ ADD
+} = useConversionStore();
+
 
   const [localEpub, setLocalEpub] = useState(epubFile);
   const [localPdf, setLocalPdf] = useState(pdfFile);
@@ -160,8 +163,39 @@ export default function ConvertPage() {
       if (!res.ok) throw new Error("Convert failed");
 
       const data = await res.json();
-      const rawHtml = data?.accessible?.accessible_html ?? "";
-      setAccessibleHtml(rawHtml);
+console.log("✅ Convert API response:", data);
+
+/* -------------------------
+   🔥 STORE BOOK ID (KEY FIX)
+-------------------------- */
+if (data.book_id) {
+  setBookId(data.book_id);
+  console.log("🔥 BOOK ID STORED FROM CONVERT:", data.book_id);
+} else {
+  console.error("❌ book_id missing in /api/convert response");
+}
+
+/* -------------------------
+   📘 STORE TOC
+-------------------------- */
+if (Array.isArray(data.toc)) {
+  setEpubToc(data.toc);
+  console.log("📑 TOC stored:", data.toc.length);
+} else {
+  console.warn("⚠️ TOC not found in convert response");
+}
+
+/* -------------------------
+   HTML
+-------------------------- */
+const rawHtml = data?.accessible?.accessible_html ?? "";
+setAccessibleHtml(rawHtml);
+
+resetMappings();
+setHtmlTags(extractSemanticTagsFromHtml(rawHtml));
+
+setPreviewMode("html");
+alert("Convert succeeded");
 
       resetMappings();
       setHtmlTags(extractSemanticTagsFromHtml(rawHtml));

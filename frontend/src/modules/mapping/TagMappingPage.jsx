@@ -43,22 +43,28 @@ const cardTitle = {
 export default function TagMapping() {
   const {
     epubFile,
+    bookId,
     epubToc,
     selectedTocItem,
-    setSelectedTocItem,
     selectedPageHref,
     selectedPageHtml,
     selectedPageTags,
     tagMappings,
-    setTagMapping,
+
+    setSelectedTocItem,
     setSelectedPageHref,
     setSelectedPageHtml,
+    setTagMapping,
   } = useConversionStore();
 
-  // ⛔ Do not render before EPUB upload
+  /* ⛔ Do not render before upload */
   if (!epubFile) return null;
 
-  const currentMappings = tagMappings?.[selectedPageHref] || {};
+  const currentMappings = tagMappings[selectedPageHref] || {};
+  console.log("STORE BOOK ID IN TAG MAPPING:", bookId);
+  console.log("TAG MAPPING READ BOOK ID:", bookId);
+
+
   const unmappedTags =
     selectedPageTags?.filter(
       (tag) =>
@@ -66,15 +72,62 @@ export default function TagMapping() {
         currentMappings[tag] === "Not mapped"
     ) || [];
 
+  /* ----------------------------
+     Load XHTML
+  ----------------------------- */
+  const loadXhtml = async (item) => {
+    console.group("📘 TOC CLICK");
+    console.log("Item:", item);
+    console.log("Book ID:", bookId);
+
+    setSelectedTocItem(item);
+    setSelectedPageHref(item.href);
+
+    if (!bookId) {
+      const msg = "❌ Book ID not ready. Upload EPUB again.";
+      console.error(msg);
+      setSelectedPageHtml(msg);
+      console.groupEnd();
+      return;
+    }
+
+    const url = `http://localhost:8000/api/epub/xhtml?book_id=${bookId}&href=${encodeURIComponent(
+      item.href
+    )}`;
+
+    console.log("Fetching:", url);
+
+    try {
+      const res = await fetch(url);
+      console.log("Status:", res.status);
+
+      const text = await res.text();
+      console.log("Response preview:", text.slice(0, 300));
+
+      if (!res.ok) {
+        setSelectedPageHtml(
+          `❌ XHTML load failed (${res.status})\n\n${text}`
+        );
+        console.groupEnd();
+        return;
+      }
+
+      setSelectedPageHtml(text);
+    } catch (err) {
+      console.error("Network error:", err);
+      setSelectedPageHtml(`❌ Network error\n\n${err.message}`);
+    }
+
+    console.groupEnd();
+  };
+
   return (
     <div style={pageWrapper}>
-      {/* QC summary */}
       <QCSummaryBar />
-
       <h2 style={{ marginTop: 10 }}>Tag Mapping</h2>
 
       <div style={grid}>
-        {/* ---------------- LEFT: EPUB TOC ---------------- */}
+        {/* ---------------- LEFT: TOC ---------------- */}
         <section style={card}>
           <div style={cardTitle}>EPUB Contents</div>
 
@@ -85,20 +138,7 @@ export default function TagMapping() {
               return (
                 <button
                   key={item.href}
-                  onClick={async () => {
-                    setSelectedTocItem(item);
-                    setSelectedPageHref(item.href);
-
-                    // ✅ LOAD XHTML DIRECTLY (same source used for tag extraction)
-                    const res = await fetch(
-                      `http://localhost:8000/api/epub/xhtml?href=${encodeURIComponent(
-                        item.href
-                      )}`
-                    );
-
-                    const html = await res.text();
-                    setSelectedPageHtml(html);
-                  }}
+                  onClick={() => loadXhtml(item)}
                   style={{
                     width: "100%",
                     textAlign: "left",
@@ -119,13 +159,13 @@ export default function TagMapping() {
           </div>
         </section>
 
-        {/* ---------------- CENTER: TAGS + XHTML ---------------- */}
+        {/* ---------------- CENTER ---------------- */}
         <section style={card}>
-          <div style={cardTitle}>Tags in Selected Section</div>
+          <div style={cardTitle}>Tags & XHTML</div>
 
           {!selectedTocItem ? (
             <div style={{ fontSize: 13, color: "#6b7280" }}>
-              Select a TOC item to view tags and XHTML.
+              Select a TOC item to load XHTML.
             </div>
           ) : (
             <>
@@ -142,29 +182,21 @@ export default function TagMapping() {
                   gap: 12,
                 }}
               >
-                {/* TAG MAPPING */}
+                {/* TAG LIST */}
                 <div style={{ maxHeight: 380, overflowY: "auto" }}>
                   {selectedPageTags.map((tag) => {
                     const value = currentMappings[tag] || "Not mapped";
-                    const mapped = value !== "Not mapped";
 
                     return (
                       <div
                         key={tag}
                         style={{
                           display: "flex",
-                          alignItems: "center",
                           gap: 8,
                           marginBottom: 8,
-                          padding: 8,
-                          borderRadius: 8,
-                          border: "1px solid #e5e7eb",
-                          background: "#fffaf0",
                         }}
                       >
-                        <div style={{ width: 70, fontFamily: "monospace" }}>
-                          &lt;{tag}&gt;
-                        </div>
+                        <code>&lt;{tag}&gt;</code>
 
                         <select
                           value={value}
@@ -175,70 +207,51 @@ export default function TagMapping() {
                               e.target.value
                             )
                           }
-                          style={{ flex: 1 }}
                         >
                           {ACCESSIBILITY_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
+                            <option key={opt}>{opt}</option>
                           ))}
                         </select>
-
-                        {mapped && (
-                          <span style={{ color: "#16a34a" }}>✔</span>
-                        )}
                       </div>
                     );
                   })}
                 </div>
 
-                {/* XHTML SOURCE PREVIEW */}
-                <div
+                {/* XHTML PREVIEW */}
+                <pre
                   style={{
                     maxHeight: 380,
                     overflow: "auto",
                     background: "#0b1120",
-                    borderRadius: 8,
-                    padding: 10,
-                    fontSize: 12,
                     color: "#e5e7eb",
-                    fontFamily: "monospace",
+                    padding: 10,
+                    borderRadius: 8,
+                    fontSize: 12,
                     whiteSpace: "pre-wrap",
                   }}
                 >
-                  {selectedPageHtml ? (
-                    selectedPageHtml
-                  ) : (
-                    <span style={{ color: "#9ca3af" }}>
-                      XHTML not loaded for this section.
-                    </span>
-                  )}
-                </div>
+                  {selectedPageHtml || "XHTML not loaded"}
+                </pre>
               </div>
             </>
           )}
         </section>
 
-        {/* ---------------- RIGHT: ERRORS ---------------- */}
+        {/* ---------------- RIGHT ---------------- */}
         <section style={card}>
           <div style={cardTitle}>Error List</div>
 
           {unmappedTags.length > 0 ? (
-            <>
-              <p style={{ fontSize: 13, color: "#374151" }}>
-                Daisy detected unmapped elements in this section:
-              </p>
-              <ul>
-                {unmappedTags.map((tag) => (
-                  <li key={tag} style={{ color: "#dc2626" }}>
-                    &lt;{tag}&gt;
-                  </li>
-                ))}
-              </ul>
-            </>
+            <ul>
+              {unmappedTags.map((tag) => (
+                <li key={tag} style={{ color: "#dc2626" }}>
+                  &lt;{tag}&gt;
+                </li>
+              ))}
+            </ul>
           ) : (
-            <div style={{ fontSize: 13, color: "#6b7280" }}>
-              No issues found for this section.
+            <div style={{ color: "#16a34a" }}>
+              No issues found for this section ✔
             </div>
           )}
         </section>

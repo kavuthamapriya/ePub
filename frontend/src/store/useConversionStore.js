@@ -1,31 +1,25 @@
 import { create } from "zustand";
 
 export const useConversionStore = create((set) => ({
-  /* ---------- Files ---------- */
-  publisher: "",
+  /* ---------- EPUB ---------- */
   epubFile: null,
-  pdfFile: null,
-
-  /* ---------- EPUB-wide HTML ---------- */
-  accessibleHtml: "",
+  bookId: null,
 
   /* ---------- TOC ---------- */
   epubToc: [],
   selectedTocItem: null,
 
-  /* ---------- Selected page context ---------- */
+  /* ---------- Selected Page ---------- */
   selectedPageHref: null,
   selectedPageHtml: "",
   selectedPageTags: [],
 
-  /* ---------- Tag mapping (per page) ---------- */
-  tagMappings: {}, // { [href]: { tag: value } }
+  /* ---------- Tag Mapping ---------- */
+  tagMappings: {},
 
   /* ---------- Setters ---------- */
-  setPublisher: (publisher) => set({ publisher }),
   setEpubFile: (epubFile) => set({ epubFile }),
-  setPdfFile: (pdfFile) => set({ pdfFile }),
-  setAccessibleHtml: (html) => set({ accessibleHtml: html }),
+  setBookId: (bookId) => set({ bookId }),
 
   setEpubToc: (toc) => set({ epubToc: toc }),
   setSelectedTocItem: (item) => set({ selectedTocItem: item }),
@@ -45,8 +39,11 @@ export const useConversionStore = create((set) => ({
       },
     })),
 
-  resetMappings: () =>
+  reset: () =>
     set({
+      epubFile: null,
+      bookId: null,
+      epubToc: [],
       selectedTocItem: null,
       selectedPageHref: null,
       selectedPageHtml: "",
