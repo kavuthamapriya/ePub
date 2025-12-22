@@ -8,6 +8,67 @@ const headerHeight = 88;
 const PREVIEW_HEIGHT = 520;
 
 /* ---------- Layout styles ---------- */
+
+const controlCard = {
+  background: "#ffffff",
+  borderRadius: 16,
+  padding: 20,
+  boxShadow: "0 10px 25px rgba(0,0,0,0.06)",
+  display: "flex",
+  flexDirection: "column",
+  gap: 20,
+};
+
+const sectionTitle = {
+  fontSize: 18,
+  fontWeight: 700,
+  color: "#111827",
+};
+
+const inputGroup = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+const label = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#374151",
+};
+
+const fileBox = {
+  border: "1px dashed #c7d2fe",
+  borderRadius: 10,
+  padding: "10px 12px",
+  background: "#f8fafc",
+  cursor: "pointer",
+};
+
+const fileName = {
+  fontSize: 12,
+  color: "#2563eb",
+  marginTop: 4,
+  wordBreak: "break-all",
+};
+
+const convertBtn = (enabled, loading) => ({
+  marginTop: 10,
+  padding: "14px",
+  borderRadius: 999,
+  border: "none",
+  fontSize: 15,
+  fontWeight: 700,
+  background: enabled
+    ? "linear-gradient(135deg,#2563eb,#1d4ed8)"
+    : "#9ca3af",
+  color: "#fff",
+  cursor: enabled ? "pointer" : "not-allowed",
+  boxShadow: enabled ? "0 8px 20px rgba(37,99,235,0.35)" : "none",
+  transition: "all 0.2s ease",
+});
+
+
 const pageLayout = {
   display: "flex",
   gap: 20,
@@ -25,14 +86,14 @@ const cardBase = {
   boxShadow: "0 1px 3px rgba(15,23,42,0.08)",
 };
 
-const leftPanel = {
-  ...cardBase,
-  width: 280,
-  minWidth: 260,
-  display: "flex",
-  flexDirection: "column",
-  gap: 16,
-};
+// const leftPanel = {
+//   ...cardBase,
+//   width: 280,
+//   minWidth: 260,
+//   display: "flex",
+//   flexDirection: "column",
+//   gap: 16,
+// };
 
 const middlePanel = {
   ...cardBase,
@@ -180,40 +241,56 @@ export default function ConvertPage() {
   return (
     <div style={pageLayout}>
       {/* LEFT */}
-      <aside style={leftPanel}>
-        <h3>Controls</h3>
+      <aside style={controlCard}>
+  <div style={sectionTitle}>Controls</div>
 
-        <div style={fieldGroup}>
-          <label style={labelStyle}>EPUB File</label>
-          <input
-            type="file"
-            accept=".epub"
-            style={fileInput}
-            onChange={(e) => handleEpubUpload(e.target.files[0])}
-          />
-        </div>
+  {/* EPUB */}
+  <div style={inputGroup}>
+    <label style={label}>EPUB File</label>
+    <label style={fileBox}>
+      <input
+        type="file"
+        accept=".epub"
+        hidden
+        onChange={(e) => handleEpubUpload(e.target.files[0])}
+      />
+      Choose EPUB file
+    </label>
+    {localEpub && (
+      <div style={fileName}>{localEpub.name}</div>
+    )}
+  </div>
 
-        <div style={fieldGroup}>
-          <label style={labelStyle}>Reference PDF</label>
-          <input
-            type="file"
-            accept="application/pdf"
-            style={fileInput}
-            onChange={(e) => {
-              setLocalPdf(e.target.files[0] || null);
-              setPdfFile(e.target.files[0] || null);
-            }}
-          />
-        </div>
+  {/* PDF */}
+  <div style={inputGroup}>
+    <label style={label}> Reference PDF</label>
+    <label style={fileBox}>
+      <input
+        type="file"
+        accept="application/pdf"
+        hidden
+        onChange={(e) => {
+          setLocalPdf(e.target.files[0] || null);
+          setPdfFile(e.target.files[0] || null);
+        }}
+      />
+      Choose PDF file (optional)
+    </label>
+    {localPdf && (
+      <div style={fileName}>{localPdf.name}</div>
+    )}
+  </div>
 
-        <button
-          onClick={handleConvert}
-          disabled={!localEpub || loading}
-          style={convertButton(loading, !!localEpub)}
-        >
-          {loading ? "Converting…" : "Convert"}
-        </button>
-      </aside>
+  {/* Convert */}
+  <button
+    onClick={handleConvert}
+    disabled={!localEpub || loading}
+    style={convertBtn(!!localEpub, loading)}
+  >
+    {loading ? "⏳ Converting…" : " Convert EPUB"}
+  </button>
+</aside>
+
 
       {/* MIDDLE */}
       <main style={middlePanel}>
@@ -225,7 +302,7 @@ export default function ConvertPage() {
 
       {/* RIGHT */}
       <aside style={rightPanel}>
-        {/* 🔥 TOGGLE */}
+        {/* TOGGLE */}
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <h3>{previewMode === "pdf" ? "PDF Preview" : "HTML Source"}</h3>
           <div style={{ display: "flex", gap: 6 }}>

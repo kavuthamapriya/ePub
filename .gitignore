@@ -99,3 +99,5 @@ dmypy.json
 
 # Testing
 .tox/
+# EPUB extraction temp folder
+backend/extracted_epub/
