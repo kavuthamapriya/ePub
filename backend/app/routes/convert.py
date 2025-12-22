@@ -14,19 +14,20 @@ router = APIRouter()
 
 @router.post("/convert", response_model=ConvertResponse)
 async def convert_epub(
-    publisher: str = Form(...),
     epub_file: UploadFile = File(...),
-    pdf_file: UploadFile | None = None,
+    pdf_file: UploadFile | None = File(None),
+    publisher: str | None = Form(None),  # ✅ OPTIONAL (frontend safe)
 ) -> ConvertResponse:
     """
     Convert EPUB (and optional PDF) into accessible HTML using Gemini.
-    Ensures a valid ConvertResponse is ALWAYS returned.
+    Frontend-compatible: publisher is optional.
+    Always returns ConvertResponse.
     """
     try:
         upload_dir = Path(UPLOAD_DIR)
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1) Save EPUB
+        # 1️⃣ Save EPUB
         try:
             epub_path = upload_dir / epub_file.filename
             epub_bytes = await epub_file.read()
@@ -36,7 +37,7 @@ async def convert_epub(
             print("[convert] Failed to save EPUB:", e)
             raise HTTPException(status_code=500, detail=f"Failed to save EPUB: {e}")
 
-        # 2) Extract EPUB HTML
+        # 2️⃣ Extract EPUB HTML
         try:
             html = extract_epub_html(str(epub_path))
             print(f"[convert] Extracted EPUB HTML length: {len(html)}")
@@ -47,7 +48,7 @@ async def convert_epub(
                 detail=f"Failed to extract EPUB HTML: {e}",
             )
 
-        # 3) Optional PDF text
+        # 3️⃣ Optional PDF text
         pdf_text = ""
         if pdf_file:
             try:
@@ -60,7 +61,7 @@ async def convert_epub(
                 print("[convert] PDF extraction failed (non-fatal):", e)
                 pdf_text = ""
 
-        # 4) Build prompt for Gemini
+        # 4️⃣ Gemini prompt (unchanged logic)
         prompt = (
             "You are an accessibility expert.\n\n"
             "Convert the following EPUB HTML into a clean, WCAG 2.1 AA "
@@ -74,9 +75,9 @@ async def convert_epub(
             "- DO NOT output <html>, <head>, or <body> tags\n\n"
             "Output JSON shape:\n"
             "{\n"
-            '  \"accessible_html\": \"string\",\n'
-            '  \"notes\": [\"string\", ...],\n'
-            '  \"percentage\": 0-100\n'
+            '  "accessible_html": "string",\n'
+            '  "notes": ["string", ...],\n'
+            '  "percentage": 0-100\n'
             "}\n\n"
             "EPUB_HTML:\n```html\n"
             f"{html}\n"
@@ -86,12 +87,12 @@ async def convert_epub(
             "```"
         )
 
-        # 5) Gemini call with fallback
+        # 5️⃣ Gemini call with safe fallback
         try:
             ai = run_gemini(prompt, expect_json=True)
             print("[convert] Gemini raw response:", ai)
         except Exception as e:
-            print("[convert] Gemini call failed:", e)
+            print("[convert] Gemini failed, fallback to raw HTML:", e)
             ai = {
                 "accessible_html": html,
                 "notes": [f"Gemini failed: {e}"],
@@ -116,6 +117,7 @@ async def convert_epub(
                 percentage=percentage,
             )
         )
+
         print("[convert] Returning ConvertResponse")
         return result
 
@@ -123,4 +125,4 @@ async def convert_epub(
         raise
     except Exception as e:
         print("[convert] Unexpected error:", e)
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

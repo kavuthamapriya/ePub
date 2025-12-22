@@ -1,3 +1,4 @@
+// src/modules/tagMapping/TagMappingPage.jsx
 import React from "react";
 import { useConversionStore } from "../../store/useConversionStore";
 import QCSummaryBar from "../qc/QCSummaryBar";
@@ -40,9 +41,39 @@ const cardTitle = {
   marginBottom: 10,
 };
 
-export default function TagMapping() {
+/* Tag row */
+const tagRow = {
+  display: "grid",
+  gridTemplateColumns: "90px 1fr 20px",
+  alignItems: "center",
+  gap: 10,
+  padding: "8px 10px",
+  marginBottom: 6,
+  borderRadius: 8,
+  background: "#fffaf0",
+  border: "1px solid #e5e7eb",
+};
+
+const tagCode = {
+  fontFamily: "monospace",
+  fontSize: 13,
+  color: "#111827",
+};
+
+const selectStyle = {
+  width: "100%",
+  padding: "6px 10px",
+  borderRadius: 6,
+  border: "1px solid #d1d5db",
+  fontSize: 13,
+  background: "#ffffff",
+};
+
+/* ----------------------------
+   Component
+----------------------------- */
+export default function TagMappingPage() {
   const {
-    epubFile,
     bookId,
     epubToc,
     selectedTocItem,
@@ -57,13 +88,9 @@ export default function TagMapping() {
     setTagMapping,
   } = useConversionStore();
 
-  /* ⛔ Do not render before upload */
-  if (!epubFile) return null;
+  if (!bookId) return null;
 
   const currentMappings = tagMappings[selectedPageHref] || {};
-  console.log("STORE BOOK ID IN TAG MAPPING:", bookId);
-  console.log("TAG MAPPING READ BOOK ID:", bookId);
-
 
   const unmappedTags =
     selectedPageTags?.filter(
@@ -76,55 +103,33 @@ export default function TagMapping() {
      Load XHTML
   ----------------------------- */
   const loadXhtml = async (item) => {
-    console.group("📘 TOC CLICK");
-    console.log("Item:", item);
-    console.log("Book ID:", bookId);
-
     setSelectedTocItem(item);
     setSelectedPageHref(item.href);
-
-    if (!bookId) {
-      const msg = "❌ Book ID not ready. Upload EPUB again.";
-      console.error(msg);
-      setSelectedPageHtml(msg);
-      console.groupEnd();
-      return;
-    }
-
-    const url = `http://localhost:8000/api/epub/xhtml?book_id=${bookId}&href=${encodeURIComponent(
-      item.href
-    )}`;
-
-    console.log("Fetching:", url);
+    setSelectedPageHtml("Loading XHTML…");
 
     try {
-      const res = await fetch(url);
-      console.log("Status:", res.status);
+      const res = await fetch(
+        `http://localhost:8000/api/epub/xhtml?book_id=${bookId}&href=${encodeURIComponent(
+          item.href
+        )}`
+      );
 
       const text = await res.text();
-      console.log("Response preview:", text.slice(0, 300));
 
       if (!res.ok) {
-        setSelectedPageHtml(
-          `❌ XHTML load failed (${res.status})\n\n${text}`
-        );
-        console.groupEnd();
+        setSelectedPageHtml(`Failed to load XHTML (${res.status})\n\n${text}`);
         return;
       }
 
       setSelectedPageHtml(text);
     } catch (err) {
-      console.error("Network error:", err);
-      setSelectedPageHtml(`❌ Network error\n\n${err.message}`);
+      setSelectedPageHtml(`Network error\n\n${err.message}`);
     }
-
-    console.groupEnd();
   };
 
   return (
     <div style={pageWrapper}>
       <QCSummaryBar />
-      <h2 style={{ marginTop: 10 }}>Tag Mapping</h2>
 
       <div style={grid}>
         {/* ---------------- LEFT: TOC ---------------- */}
@@ -147,7 +152,7 @@ export default function TagMapping() {
                     borderRadius: 6,
                     border: "none",
                     background: active ? "#2563eb" : "transparent",
-                    color: active ? "#fff" : "#111827",
+                    color: active ? "#ffffff" : "#111827",
                     cursor: "pointer",
                     fontSize: 13,
                   }}
@@ -159,7 +164,7 @@ export default function TagMapping() {
           </div>
         </section>
 
-        {/* ---------------- CENTER ---------------- */}
+        {/* ---------------- CENTER: TAGS + XHTML ---------------- */}
         <section style={card}>
           <div style={cardTitle}>Tags & XHTML</div>
 
@@ -186,17 +191,11 @@ export default function TagMapping() {
                 <div style={{ maxHeight: 380, overflowY: "auto" }}>
                   {selectedPageTags.map((tag) => {
                     const value = currentMappings[tag] || "Not mapped";
+                    const mapped = value !== "Not mapped";
 
                     return (
-                      <div
-                        key={tag}
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          marginBottom: 8,
-                        }}
-                      >
-                        <code>&lt;{tag}&gt;</code>
+                      <div key={tag} style={tagRow}>
+                        <div style={tagCode}>&lt;{tag}&gt;</div>
 
                         <select
                           value={value}
@@ -207,11 +206,20 @@ export default function TagMapping() {
                               e.target.value
                             )
                           }
+                          style={selectStyle}
                         >
                           {ACCESSIBILITY_OPTIONS.map((opt) => (
-                            <option key={opt}>{opt}</option>
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
                           ))}
                         </select>
+
+                        <div style={{ textAlign: "center" }}>
+                          {mapped && (
+                            <span style={{ color: "#16a34a" }}>✔</span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -237,20 +245,20 @@ export default function TagMapping() {
           )}
         </section>
 
-        {/* ---------------- RIGHT ---------------- */}
+        {/* ---------------- RIGHT: ERRORS ---------------- */}
         <section style={card}>
           <div style={cardTitle}>Error List</div>
 
           {unmappedTags.length > 0 ? (
-            <ul>
+            <ul style={{ paddingLeft: 16 }}>
               {unmappedTags.map((tag) => (
-                <li key={tag} style={{ color: "#dc2626" }}>
+                <li key={tag} style={{ color: "#dc2626", fontSize: 13 }}>
                   &lt;{tag}&gt;
                 </li>
               ))}
             </ul>
           ) : (
-            <div style={{ color: "#16a34a" }}>
+            <div style={{ color: "#16a34a", fontSize: 13 }}>
               No issues found for this section ✔
             </div>
           )}

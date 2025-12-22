@@ -1,25 +1,26 @@
 import { create } from "zustand";
 
 export const useConversionStore = create((set) => ({
-  /* ---------- EPUB ---------- */
+  /* ---------- Convert / EPUB ---------- */
   epubFile: null,
   bookId: null,
+  accessibleHtml: "",
 
   /* ---------- TOC ---------- */
   epubToc: [],
   selectedTocItem: null,
 
-  /* ---------- Selected Page ---------- */
+  /* ---------- Tag Mapping ---------- */
   selectedPageHref: null,
   selectedPageHtml: "",
   selectedPageTags: [],
-
-  /* ---------- Tag Mapping ---------- */
   tagMappings: {},
 
   /* ---------- Setters ---------- */
-  setEpubFile: (epubFile) => set({ epubFile }),
-  setBookId: (bookId) => set({ bookId }),
+  setEpubFile: (file) => set({ epubFile: file }),
+  setBookId: (id) => set({ bookId: id }),
+
+  setAccessibleHtml: (html) => set({ accessibleHtml: html }),
 
   setEpubToc: (toc) => set({ epubToc: toc }),
   setSelectedTocItem: (item) => set({ selectedTocItem: item }),
@@ -39,11 +40,8 @@ export const useConversionStore = create((set) => ({
       },
     })),
 
-  reset: () =>
+  resetAfterConvert: () =>
     set({
-      epubFile: null,
-      bookId: null,
-      epubToc: [],
       selectedTocItem: null,
       selectedPageHref: null,
       selectedPageHtml: "",

@@ -7,7 +7,7 @@ import TagMappingPage from "../mapping/TagMappingPage";
 export default function EpubWorkspace() {
   return (
     <div style={{ padding: 20 }}>
-      <UploadEpub />
+      {/* <UploadEpub /> */}
       <TagMappingPage />
     </div>
   );

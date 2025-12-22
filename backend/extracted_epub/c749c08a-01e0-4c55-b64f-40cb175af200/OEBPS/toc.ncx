@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ncx version="2005-1" xml:lang="en" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+<head>
+<meta name="dtb:uid" content="9781837654574" />
+<meta name="dtb:depth" content="1" />
+<meta name="dtb:totalPageCount" content="217" />
+<meta name="dtb:maxPageNumber" content="217" />
+</head>
+<docTitle>
+<text>Media and Marginals in India</text>
+</docTitle>
+<docAuthor>
+<text>Manoj Kumar Jena</text>
+</docAuthor>
+<navMap>
+<navPoint id="navpoint-0" playOrder="0"><navLabel><text>Cover</text></navLabel><content src="xhtml/Cover.xhtml" /></navPoint>
+<navPoint id="navpoint-1" playOrder="1"><navLabel><text>Halftitle Page</text></navLabel><content src="xhtml/00_Halftitle_Page.xhtml" /></navPoint>
+<navPoint id="navpoint-2" playOrder="2"><navLabel><text>Title Page</text></navLabel><content src="xhtml/01_Title_Page.xhtml" /></navPoint>
+<navPoint id="navpoint-3" playOrder="3"><navLabel><text>Copyright Page</text></navLabel><content src="xhtml/02_Copyright_Page.xhtml" /></navPoint>
+<navPoint id="navpoint-4" playOrder="4"><navLabel><text>Contents</text></navLabel><content src="xhtml/03_Contents.xhtml" /></navPoint>
+<navPoint id="navpoint-5" playOrder="5"><navLabel><text>Preface</text></navLabel><content src="xhtml/04_Preface.xhtml" /></navPoint>
+<navPoint id="navpoint-6" playOrder="6"><navLabel><text>Introduction</text></navLabel><content src="xhtml/05_Introduction.xhtml" /></navPoint>
+<navPoint id="navpoint-7" playOrder="7"><navLabel><text>1. Gender, Sexuality and Cinema: Reinforcing the Stereotype</text></navLabel><content src="xhtml/06_1__Gender__Sexuality_and_Cinema__Reinforcing_the_Stereotype.xhtml" /></navPoint>
+<navPoint id="navpoint-8" playOrder="8"><navLabel><text>2. Hindi Cinema and Caste Question: Ideology and Reproduction of Dominance</text></navLabel><content src="xhtml/07_2__Hindi_Cinema_and_Caste_Question__Ideology_and_Reproduction_of.xhtml" /></navPoint>
+<navPoint id="navpoint-9" playOrder="9"><navLabel><text>3. Realities of the Marginal Worker as Reflected in the Medium of Cinema</text></navLabel><content src="xhtml/08_3__Realities_of_the_Marginal_Worker_as_Reflected_in_the_Medium_o.xhtml" /></navPoint>
+<navPoint id="navpoint-10" playOrder="10"><navLabel><text>4. Disability in Cinema: A Case Study of Selected Hindi Films</text></navLabel><content src="xhtml/09_4__Disability_in_Cinema__A_Case_Study_of_Selected_Hindi_Films.xhtml" /></navPoint>
+<navPoint id="navpoint-11" playOrder="11"><navLabel><text>5. Epistemic Ashr&#257;fiya-Morality and Urdu Theatre Public Sphere in Nineteenth-Century Bihar: Muslim Internal-Decoloniality</text></navLabel><content src="xhtml/10_5__Epistemic_Ashr_fiya_Morality_and_Urdu_Theatre_Public_Sphere_i.xhtml" /></navPoint>
+<navPoint id="navpoint-12" playOrder="12"><navLabel><text>6. Mediations and the Body-Politic: The Problem of Representation Revisited</text></navLabel><content src="xhtml/11_6__Mediations_and_the_Body_Politic__The_Problem_of_Representatio.xhtml" /></navPoint>
+<navPoint id="navpoint-13" playOrder="13"><navLabel><text>7. Consuming and Producing Feminism through Indian Media: Analysis of Empowerment, Commodification in Culture Industry</text></navLabel><content src="xhtml/12_7__Consuming_and_Producing_Feminism_through_Indian_Media__Analys.xhtml" /></navPoint>
+<navPoint id="navpoint-14" playOrder="14"><navLabel><text>8. Media, Minority Consciousness, Memory: Sikhs and 1984</text></navLabel><content src="xhtml/13_8__Media__Minority_Consciousness__Memory__Sikhs_and_1984.xhtml" /></navPoint>
+<navPoint id="navpoint-15" playOrder="15"><navLabel><text>9. Media, Social Media and the Gorkhaland Agitation in Darjeeling</text></navLabel><content src="xhtml/14_9__Media__Social_Media_and_the_Gorkhaland_Agitation_in_Darjeelin.xhtml" /></navPoint>
+<navPoint id="navpoint-16" playOrder="16"><navLabel><text>List of Contributors</text></navLabel><content src="xhtml/15_List_of_Contributors.xhtml" /></navPoint>
+<navPoint id="navpoint-17" playOrder="17"><navLabel><text>Index</text></navLabel><content src="xhtml/16_Index.xhtml" /></navPoint>
+</navMap></ncx>
+

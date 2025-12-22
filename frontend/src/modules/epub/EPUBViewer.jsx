@@ -32,7 +32,7 @@ export default function EPUBViewer({ file }) {
     rendition.display();
     renditionRef.current = rendition;
 
-    // ✅ Load TOC
+    /* -------- TOC -------- */
     book.loaded.navigation.then((nav) => {
       setEpubToc(
         nav.toc.map((item) => ({
@@ -42,7 +42,7 @@ export default function EPUBViewer({ file }) {
       );
     });
 
-    // ✅ CORE: Extract tags ONLY from rendered page
+    /* -------- TAG EXTRACTION (RENDERED XHTML ONLY) -------- */
     rendition.on("rendered", (section) => {
       const iframe = viewerRef.current.querySelector("iframe");
       if (!iframe) return;
@@ -68,7 +68,7 @@ export default function EPUBViewer({ file }) {
         if (!skip.has(tag)) tags.add(tag);
       });
 
-      // ✅ Store page context globally
+      // ✅ Store context for Tag Mapping
       setSelectedPageHref(section.href);
       setSelectedPageTags(Array.from(tags).sort());
     });
@@ -79,27 +79,7 @@ export default function EPUBViewer({ file }) {
     };
   }, [file]);
 
-  // Jump to TOC selection
-
-const onTocClick = async (href) => {
-  setSelectedPageHref(href);
-
-  const res = await fetch("http://localhost:8000/api/qc/doc_html", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ doc_path: href }),
-  });
-
-  const data = await res.json();
-
-  if (data.html) {
-    setCurrentHtml(data.html);
-  } else {
-    setCurrentHtml("xhtml not loaded for this section");
-  }
-};
-
-
+  /* -------- Jump when TOC clicked in TagMapping -------- */
   useEffect(() => {
     if (selectedTocItem && renditionRef.current) {
       renditionRef.current.display(selectedTocItem.href);

@@ -1,59 +1,55 @@
-import React, { useEffect } from "react";
-import usePDF from "./usePDF";
+import React, { useEffect, useRef } from "react";
 
 const wrapperStyle = {
   width: "100%",
   height: "100%",
-  display: "flex",
-  flexDirection: "column",
-};
-
-const toolsStyle = {
-  display: "flex",
-  gap: "8px",
-  marginBottom: "8px",
-  alignItems: "center",
-};
-
-const canvasWrapper = {
-  flex: 1,
-  overflow: "auto",
+  overflowY: "auto",
   border: "1px solid #d1d5db",
   borderRadius: "4px",
   backgroundColor: "#fff",
+  padding: "8px",
 };
 
 function PDFViewer({ file }) {
-  const {
-    canvasRef,
-    pageNum,
-    loadPDF,
-    nextPage,
-    prevPage,
-    zoomIn,
-    zoomOut,
-  } = usePDF();
+  const containerRef = useRef(null);
 
   useEffect(() => {
-    if (file && window.pdfjsLib) {
-      loadPDF(file);
-    }
+    if (!file || !window.pdfjsLib) return;
+
+    const container = containerRef.current;
+    container.innerHTML = ""; // 🔥 clear old pages
+
+    const reader = new FileReader();
+
+    reader.onload = async function () {
+      const typedArray = new Uint8Array(this.result);
+      const pdf = await window.pdfjsLib.getDocument(typedArray).promise;
+
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+
+        const viewport = page.getViewport({ scale: 1.2 });
+
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.display = "block";
+        canvas.style.margin = "0 auto 16px";
+
+        container.appendChild(canvas);
+
+        await page.render({
+          canvasContext: context,
+          viewport,
+        }).promise;
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
   }, [file]);
 
-  return (
-    <div style={wrapperStyle}>
-      <div style={toolsStyle}>
-        <button onClick={prevPage}>Prev</button>
-        <button onClick={nextPage}>Next</button>
-        <button onClick={zoomOut}>-</button>
-        <button onClick={zoomIn}>+</button>
-        <span style={{ fontSize: "0.9rem" }}>Page: {pageNum}</span>
-      </div>
-      <div style={canvasWrapper}>
-        <canvas ref={canvasRef}></canvas>
-      </div>
-    </div>
-  );
+  return <div ref={containerRef} style={wrapperStyle}></div>;
 }
-
 export default PDFViewer;
