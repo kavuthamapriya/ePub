@@ -1,10 +1,13 @@
 import { create } from "zustand";
 
 export const useQCStore = create((set) => ({
-  issues: [],
-  selectedIssue: null,
+  qcStatus: "idle", // idle | running | done | error
+  qcSummary: {
+    errors: 0,
+    warnings: 0,
+    passes: 0,
+  },
 
-  setIssues: (issues) => set({ issues }),
-  setSelectedIssue: (issue) => set({ selectedIssue: issue }),
+  setQcStatus: (status) => set({ qcStatus: status }),
+  setQcSummary: (summary) => set({ qcSummary: summary }),
 }));
-

@@ -172,6 +172,8 @@ export default function ConvertPage() {
 
     setLocalEpub(file);
     setEpubFile(file);
+      // autoRunQC(file);
+
 
     const fd = new FormData();
     fd.append("epub", file);
