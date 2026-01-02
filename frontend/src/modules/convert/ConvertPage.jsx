@@ -289,7 +289,7 @@ export default function ConvertPage() {
     disabled={!localEpub || loading}
     style={convertBtn(!!localEpub, loading)}
   >
-    {loading ? "⏳ Converting…" : " Convert EPUB"}
+    {loading ? "⏳ Converting…" : " Convert EPUB to HTML"}
   </button>
 </aside>
 

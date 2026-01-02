@@ -1,268 +1,242 @@
-// src/modules/tagMapping/TagMappingPage.jsx
-import React from "react";
-import { useConversionStore } from "../../store/useConversionStore";
+import React, { useState } from "react";
+import { useQCStore } from "../../store/useQCStore";
 import QCSummaryBar from "../qc/QCSummaryBar";
 
-/* ----------------------------
-   Constants
------------------------------ */
-const ACCESSIBILITY_OPTIONS = [
-  "Not mapped",
-  "Chapter Title",
-  "Section Title",
-  "Paragraph",
-  "Figure",
-  "Table",
-  "List",
-  "Reference",
-];
+/* --------------------------------
+   Helper: group repeated issues
+--------------------------------- */
+function groupIssuesByRule(issues = []) {
+  const map = {};
 
-/* ----------------------------
-   Styles
------------------------------ */
-const pageWrapper = { padding: 20 };
+  issues.forEach((issue) => {
+    const key = issue.rule || "Unknown rule";
+    if (!map[key]) {
+      map[key] = { ...issue, count: 1 };
+    } else {
+      map[key].count += 1;
+    }
+  });
 
-const grid = {
-  display: "grid",
-  gridTemplateColumns: "280px 1fr 320px",
-  gap: 16,
-};
+  return Object.values(map);
+}
 
-const card = {
-  background: "#ffffff",
-  borderRadius: 12,
-  padding: 14,
-  boxShadow: "0 1px 3px rgba(15,23,42,0.08)",
-};
-
-const cardTitle = {
-  fontSize: 14,
-  fontWeight: 700,
-  marginBottom: 10,
-};
-
-/* Tag row */
-const tagRow = {
-  display: "grid",
-  gridTemplateColumns: "90px 1fr 20px",
-  alignItems: "center",
-  gap: 10,
-  padding: "8px 10px",
-  marginBottom: 6,
-  borderRadius: 8,
-  background: "#fffaf0",
-  border: "1px solid #e5e7eb",
-};
-
-const tagCode = {
-  fontFamily: "monospace",
-  fontSize: 13,
-  color: "#111827",
-};
-
-const selectStyle = {
-  width: "100%",
-  padding: "6px 10px",
-  borderRadius: 6,
-  border: "1px solid #d1d5db",
-  fontSize: 13,
-  background: "#ffffff",
-};
-
-/* ----------------------------
-   Component
------------------------------ */
 export default function TagMappingPage() {
+  const [activeType, setActiveType] = useState("errors");
+  const [isSaving, setIsSaving] = useState(false);
+
   const {
-    bookId,
-    epubToc,
-    selectedTocItem,
-    selectedPageHref,
-    selectedPageHtml,
-    selectedPageTags,
-    tagMappings,
+    qcIssues = { errors: [], warnings: [], passes: [] },
+    qcSummary,
+    selectedHtml,
+    setSelectedHtml,
+    selectedIssue,
+    setSelectedIssue,
+  } = useQCStore();
 
-    setSelectedTocItem,
-    setSelectedPageHref,
-    setSelectedPageHtml,
-    setTagMapping,
-  } = useConversionStore();
+  /* --------------------------------
+     Active issue list
+  --------------------------------- */
+  const getActiveList = () => {
+    let list = [];
 
-  if (!bookId) return null;
+    if (activeType === "errors") list = qcIssues.errors || [];
+    if (activeType === "warnings") list = qcIssues.warnings || [];
 
-  const currentMappings = tagMappings[selectedPageHref] || {};
+    // passes = count only
+    if (activeType === "passes") return [];
 
-  const unmappedTags =
-    selectedPageTags?.filter(
-      (tag) =>
-        !currentMappings[tag] ||
-        currentMappings[tag] === "Not mapped"
-    ) || [];
+    return groupIssuesByRule(list);
+  };
 
-  /* ----------------------------
-     Load XHTML
-  ----------------------------- */
-  const loadXhtml = async (item) => {
-    setSelectedTocItem(item);
-    setSelectedPageHref(item.href);
-    setSelectedPageHtml("Loading XHTML…");
+  /* --------------------------------
+     Issue click handler
+  --------------------------------- */
+  const handleIssueClick = async (issue) => {
+    setSelectedIssue(issue);
+    setSelectedHtml("Loading…");
+
+    const isOPF =
+      !issue.file ||
+      issue.file.toLowerCase().endsWith(".opf") ||
+      issue.file.toLowerCase().includes("package");
+
+    const docPath = isOPF ? "content.opf" : issue.file;
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/epub/xhtml?book_id=${bookId}&href=${encodeURIComponent(
-          item.href
-        )}`
-      );
+      const res = await fetch("http://localhost:8000/api/qc/doc_html", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doc_path: docPath }),
+      });
 
-      const text = await res.text();
+      if (!res.ok) throw new Error("Document not found");
 
-      if (!res.ok) {
-        setSelectedPageHtml(`Failed to load XHTML (${res.status})\n\n${text}`);
-        return;
-      }
+      const data = await res.json();
 
-      setSelectedPageHtml(text);
-    } catch (err) {
-      setSelectedPageHtml(`Network error\n\n${err.message}`);
+      // 🔥 RAW content only (NO escape)
+      setSelectedHtml(data.html || "");
+    } catch {
+      setSelectedHtml("Failed to load document");
     }
   };
 
+  /* --------------------------------
+     SAVE + RE-RUN QC (OPF only)
+  --------------------------------- */
+  const handleSaveAndRerun = async () => {
+    if (!selectedIssue) return;
+
+    setIsSaving(true);
+
+    try {
+      const form = new FormData();
+      form.append("doc_path", "content.opf");
+      form.append("html", selectedHtml);
+
+      const res = await fetch("http://localhost:8000/api/qc/fix", {
+        method: "POST",
+        body: form,
+      });
+
+      if (!res.ok) throw new Error("Save failed");
+
+      // 🔁 QC re-run handled automatically by backend
+      alert("OPF saved & QC re-run successfully ✅");
+    } catch (err) {
+      alert("Failed to save OPF ❌");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const isOPFFile =
+    selectedIssue &&
+    (!selectedIssue.file ||
+      selectedIssue.file.toLowerCase().endsWith(".opf") ||
+      selectedIssue.file.toLowerCase().includes("package"));
+
   return (
-    <div style={pageWrapper}>
-      <QCSummaryBar />
+    <div style={{ padding: 20 }}>
+      <QCSummaryBar
+        onErrorsClick={() => setActiveType("errors")}
+        onWarningsClick={() => setActiveType("warnings")}
+        onPassesClick={() => setActiveType("passes")}
+      />
 
-      <div style={grid}>
-        {/* ---------------- LEFT: TOC ---------------- */}
-        <section style={card}>
-          <div style={cardTitle}>EPUB Contents</div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+          marginTop: 20,
+        }}
+      >
+        {/* LEFT: ISSUE LIST */}
+        <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
+          <h3>
+            {activeType === "passes"
+              ? "Passes (count only)"
+              : activeType.charAt(0).toUpperCase() + activeType.slice(1)}
+          </h3>
 
-          <div style={{ maxHeight: 420, overflowY: "auto" }}>
-            {epubToc.map((item) => {
-              const active = selectedTocItem?.href === item.href;
-
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => loadXhtml(item)}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "6px 8px",
-                    marginBottom: 4,
-                    borderRadius: 6,
-                    border: "none",
-                    background: active ? "#2563eb" : "transparent",
-                    color: active ? "#ffffff" : "#111827",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ---------------- CENTER: TAGS + XHTML ---------------- */}
-        <section style={card}>
-          <div style={cardTitle}>Tags & XHTML</div>
-
-          {!selectedTocItem ? (
-            <div style={{ fontSize: 13, color: "#6b7280" }}>
-              Select a TOC item to load XHTML.
-            </div>
+          {activeType === "passes" ? (
+            <p>
+              Passing checks are not listed.<br />
+              Total passes: <strong>{qcSummary?.passes}</strong>
+            </p>
+          ) : getActiveList().length === 0 ? (
+            <p>No issues found.</p>
           ) : (
-            <>
-              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
-                Section: <b>{selectedTocItem.label}</b>
-                <br />
-                File: {selectedPageHref}
-              </div>
-
+            getActiveList().map((issue, i) => (
               <div
+                key={i}
+                onClick={() => handleIssueClick(issue)}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 12,
+                  cursor: "pointer",
+                  padding: "10px 0",
+                  borderBottom: "1px solid #e5e7eb",
                 }}
               >
-                {/* TAG LIST */}
-                <div style={{ maxHeight: 380, overflowY: "auto" }}>
-                  {selectedPageTags.map((tag) => {
-                    const value = currentMappings[tag] || "Not mapped";
-                    const mapped = value !== "Not mapped";
-
-                    return (
-                      <div key={tag} style={tagRow}>
-                        <div style={tagCode}>&lt;{tag}&gt;</div>
-
-                        <select
-                          value={value}
-                          onChange={(e) =>
-                            setTagMapping(
-                              selectedPageHref,
-                              tag,
-                              e.target.value
-                            )
-                          }
-                          style={selectStyle}
-                        >
-                          {ACCESSIBILITY_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                        </select>
-
-                        <div style={{ textAlign: "center" }}>
-                          {mapped && (
-                            <span style={{ color: "#16a34a" }}>✔</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* XHTML PREVIEW */}
-                <pre
-                  style={{
-                    maxHeight: 380,
-                    overflow: "auto",
-                    background: "#0b1120",
-                    color: "#e5e7eb",
-                    padding: 10,
-                    borderRadius: 8,
-                    fontSize: 12,
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {selectedPageHtml || "XHTML not loaded"}
-                </pre>
+                <strong>
+                  {issue.rule}
+                  {issue.count > 1 && (
+                    <span style={{ color: "#6b7280", marginLeft: 6 }}>
+                      ({issue.count} occurrences)
+                    </span>
+                  )}
+                </strong>
+                <div>{issue.message}</div>
+                <small>{issue.file}</small>
               </div>
+            ))
+          )}
+        </div>
+
+        {/* RIGHT: PREVIEW / EDITOR */}
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: 12,
+            padding: 16,
+            height: 600,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <h3>{isOPFFile ? "OPF Editor (Editable)" : "XHTML Preview"}</h3>
+
+          {!selectedHtml ? (
+            <p>Select an issue to preview</p>
+          ) : isOPFFile ? (
+            <>
+              {/* ✏️ OPF EDITOR */}
+              <textarea
+                value={selectedHtml}
+                onChange={(e) => setSelectedHtml(e.target.value)}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  fontFamily: "monospace",
+                  fontSize: 13,
+                  padding: 12,
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  resize: "none",
+                  whiteSpace: "pre",
+                }}
+              />
+
+              <button
+                onClick={handleSaveAndRerun}
+                disabled={isSaving}
+                style={{
+                  marginTop: 12,
+                  padding: "10px 16px",
+                  background: "#2563eb",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  alignSelf: "flex-end",
+                }}
+              >
+                {isSaving ? "Saving…" : "Save & Re-run QC"}
+              </button>
             </>
-          )}
-        </section>
-
-        {/* ---------------- RIGHT: ERRORS ---------------- */}
-        <section style={card}>
-          <div style={cardTitle}>Error List</div>
-
-          {unmappedTags.length > 0 ? (
-            <ul style={{ paddingLeft: 16 }}>
-              {unmappedTags.map((tag) => (
-                <li key={tag} style={{ color: "#dc2626", fontSize: 13 }}>
-                  &lt;{tag}&gt;
-                </li>
-              ))}
-            </ul>
           ) : (
-            <div style={{ color: "#16a34a", fontSize: 13 }}>
-              No issues found for this section ✔
-            </div>
+            /* 👁 XHTML PREVIEW */
+            <iframe
+              title="XHTML Preview"
+              srcDoc={selectedHtml}
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "1px solid #e5e7eb",
+                borderRadius: 8,
+              }}
+            />
           )}
-        </section>
+        </div>
       </div>
     </div>
   );
