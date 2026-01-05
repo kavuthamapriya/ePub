@@ -31,6 +31,8 @@ export default function TagMappingPage() {
     setSelectedHtml,
     selectedIssue,
     setSelectedIssue,
+    lastEditedFile,
+    setLastEditedFile,
   } = useQCStore();
 
   /* --------------------------------
@@ -41,8 +43,6 @@ export default function TagMappingPage() {
 
     if (activeType === "errors") list = qcIssues.errors || [];
     if (activeType === "warnings") list = qcIssues.warnings || [];
-
-    // passes = count only
     if (activeType === "passes") return [];
 
     return groupIssuesByRule(list);
@@ -62,6 +62,9 @@ export default function TagMappingPage() {
 
     const docPath = isOPF ? "content.opf" : issue.file;
 
+    // 🔥 THIS IS CRITICAL
+    setLastEditedFile(docPath);
+
     try {
       const res = await fetch("http://localhost:8000/api/qc/doc_html", {
         method: "POST",
@@ -72,8 +75,6 @@ export default function TagMappingPage() {
       if (!res.ok) throw new Error("Document not found");
 
       const data = await res.json();
-
-      // 🔥 RAW content only (NO escape)
       setSelectedHtml(data.html || "");
     } catch {
       setSelectedHtml("Failed to load document");
@@ -81,16 +82,16 @@ export default function TagMappingPage() {
   };
 
   /* --------------------------------
-     SAVE + RE-RUN QC (OPF only)
+     SAVE + RE-RUN QC (OPF + XHTML)
   --------------------------------- */
   const handleSaveAndRerun = async () => {
-    if (!selectedIssue) return;
-
-    setIsSaving(true);
+    if (!lastEditedFile) return;
 
     try {
+      setIsSaving(true);
+
       const form = new FormData();
-      form.append("doc_path", "content.opf");
+      form.append("doc_path", lastEditedFile);
       form.append("html", selectedHtml);
 
       const res = await fetch("http://localhost:8000/api/qc/fix", {
@@ -100,20 +101,20 @@ export default function TagMappingPage() {
 
       if (!res.ok) throw new Error("Save failed");
 
-      // 🔁 QC re-run handled automatically by backend
-      alert("OPF saved & QC re-run successfully ✅");
+      const data = await res.json();
+
+      alert("Saved & QC re-run successfully ✅");
+
+      // refresh QC state
+      useQCStore.getState().setQcSummary(data.summary);
+      useQCStore.getState().setQcIssues(data.issues);
     } catch (err) {
-      alert("Failed to save OPF ❌");
+      console.error(err);
+      alert("Failed to save ❌");
     } finally {
       setIsSaving(false);
     }
   };
-
-  const isOPFFile =
-    selectedIssue &&
-    (!selectedIssue.file ||
-      selectedIssue.file.toLowerCase().endsWith(".opf") ||
-      selectedIssue.file.toLowerCase().includes("package"));
 
   return (
     <div style={{ padding: 20 }}>
@@ -132,7 +133,16 @@ export default function TagMappingPage() {
         }}
       >
         {/* LEFT: ISSUE LIST */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
+        <div
+  style={{
+    background: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    height: 600,          // 🔥 fixed height
+    overflowY: "auto",    // 🔥 enable vertical scroll
+  }}
+>
+
           <h3>
             {activeType === "passes"
               ? "Passes (count only)"
@@ -141,7 +151,8 @@ export default function TagMappingPage() {
 
           {activeType === "passes" ? (
             <p>
-              Passing checks are not listed.<br />
+              Passing checks are not listed.
+              <br />
               Total passes: <strong>{qcSummary?.passes}</strong>
             </p>
           ) : getActiveList().length === 0 ? (
@@ -161,7 +172,7 @@ export default function TagMappingPage() {
                   {issue.rule}
                   {issue.count > 1 && (
                     <span style={{ color: "#6b7280", marginLeft: 6 }}>
-                      ({issue.count} occurrences)
+                      ({issue.count})
                     </span>
                   )}
                 </strong>
@@ -172,7 +183,7 @@ export default function TagMappingPage() {
           )}
         </div>
 
-        {/* RIGHT: PREVIEW / EDITOR */}
+        {/* RIGHT: CODE EDITOR */}
         <div
           style={{
             background: "#fff",
@@ -183,13 +194,12 @@ export default function TagMappingPage() {
             flexDirection: "column",
           }}
         >
-          <h3>{isOPFFile ? "OPF Editor (Editable)" : "XHTML Preview"}</h3>
+          <h3>Source Editor (XHTML / OPF)</h3>
 
           {!selectedHtml ? (
-            <p>Select an issue to preview</p>
-          ) : isOPFFile ? (
+            <p>Select an issue to load source</p>
+          ) : (
             <>
-              {/* ✏️ OPF EDITOR */}
               <textarea
                 value={selectedHtml}
                 onChange={(e) => setSelectedHtml(e.target.value)}
@@ -203,6 +213,7 @@ export default function TagMappingPage() {
                   borderRadius: 8,
                   resize: "none",
                   whiteSpace: "pre",
+                  background: "#fafafa",
                 }}
               />
 
@@ -223,18 +234,6 @@ export default function TagMappingPage() {
                 {isSaving ? "Saving…" : "Save & Re-run QC"}
               </button>
             </>
-          ) : (
-            /* 👁 XHTML PREVIEW */
-            <iframe
-              title="XHTML Preview"
-              srcDoc={selectedHtml}
-              style={{
-                width: "100%",
-                height: "100%",
-                border: "1px solid #e5e7eb",
-                borderRadius: 8,
-              }}
-            />
           )}
         </div>
       </div>

@@ -34,7 +34,7 @@ function SummaryBox({ label, value, bg, color, onClick }) {
 }
 
 /* --------------------------------
-   QC Summary Bar
+   QC Summary Bar (FINAL – backend driven)
 --------------------------------- */
 export default function QCSummaryBar({
   onErrorsClick,
@@ -81,77 +81,13 @@ export default function QCSummaryBar({
         const data = await res.json();
 
         /* --------------------------------
-           Parse Daisy ACE issues
+           ✅ SINGLE SOURCE OF TRUTH
+           Backend already parsed ACE
         --------------------------------- */
-        const errors = [];
-        const warnings = [];
-        const passes = [];
-
-        const raw = data?.raw_report || {};
-        const assertions = Array.isArray(raw.assertions)
-          ? raw.assertions
-          : Array.isArray(raw["earl:assertions"])
-          ? raw["earl:assertions"]
-          : [];
-
-        console.log("Assertions count:", assertions.length);
-
-        assertions.forEach((a) => {
-          const result = a?.result || a?.["earl:result"] || {};
-          const outcome = (
-            a?.outcome ||
-            a?.["earl:outcome"] ||
-            result?.outcome ||
-            result?.["earl:outcome"] ||
-            ""
-          )
-            .toString()
-            .toLowerCase();
-
-          const locations =
-            Array.isArray(a?.locations) && a.locations.length > 0
-              ? a.locations
-              : [null]; // document-level issue
-
-          locations.forEach((loc) => {
-            const issue = {
-  rule:
-    a?.assertionId ||
-    a?.id ||
-    a?.["earl:test"]?.["@id"] ||
-    "Document-level check",
-
-  message:
-    a?.description ||
-    a?.help ||
-    a?.["earl:test"]?.title ||
-    "Document-level accessibility requirement failed",
-
-  file: loc?.path || "EPUB package (OPF / metadata)",
-  line: loc?.line ?? null,
-  html: loc?.html ?? null,
-};
-
-
-            if (outcome.includes("fail") || outcome.includes("error")) {
-              errors.push(issue);
-            } else if (outcome.includes("warn")) {
-              warnings.push(issue);
-            } else if (outcome.includes("pass")) {
-              passes.push(issue);
-            }
-          });
-        });
-
-        /* --------------------------------
-           SINGLE SOURCE OF TRUTH
-        --------------------------------- */
-        setQcIssues({ errors, warnings, passes });
-        setQcSummary({
-          errors: errors.length,
-          warnings: warnings.length,
-          passes: passes.length,
-        });
+        setQcIssues(data.issues || { errors: [], warnings: [], passes: [] });
+        setQcSummary(
+          data.summary || { errors: 0, warnings: 0, passes: 0 }
+        );
 
         setQcStatus("done");
       } catch (err) {

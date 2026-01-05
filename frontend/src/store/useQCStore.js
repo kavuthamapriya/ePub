@@ -11,16 +11,19 @@ export const useQCStore = create((set) => ({
     passes: 0,
   },
 
-  // ✅ Detailed Daisy ACE issues
+  // Detailed Daisy ACE issues
   qcIssues: {
     errors: [],
     warnings: [],
     passes: [],
   },
 
-  // Optional selection (used later)
+  // Selection
   selectedIssue: null,
   selectedHtml: "",
+
+  // 🔥 Track last edited XHTML
+  lastEditedFile: null,
 
   // -------- setters --------
   setQcStatus: (status) => set({ qcStatus: status }),
@@ -45,4 +48,7 @@ export const useQCStore = create((set) => ({
 
   setSelectedIssue: (issue) => set({ selectedIssue: issue }),
   setSelectedHtml: (html) => set({ selectedHtml: html }),
+
+  // 🔥 NEW
+  setLastEditedFile: (file) => set({ lastEditedFile: file }),
 }));

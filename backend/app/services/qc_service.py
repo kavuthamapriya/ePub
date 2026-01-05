@@ -79,30 +79,61 @@ def extract_doc_html(epub_bytes: bytes, doc_path: str) -> str | None:
 # Write XHTML back into EPUB
 # =========================================================
 def write_doc_into_epub(epub_bytes: bytes, doc_path: str, new_html: str) -> bytes:
+    if not epub_bytes or not doc_path:
+        raise HTTPException(status_code=400, detail="Missing parameters")
+
+    normalized = doc_path.replace("\\", "/").lstrip("/")
+
     try:
         zin = zipfile.ZipFile(io.BytesIO(epub_bytes), "r")
     except zipfile.BadZipFile:
-        raise HTTPException(400, "Invalid EPUB")
+        raise HTTPException(status_code=400, detail="Invalid EPUB")
 
     names = zin.namelist()
+    candidates = _normalize_candidates_from_path(normalized)
+
     target = None
 
-    for cand in _normalize_candidates_from_path(doc_path):
+    # 1️⃣ Exact match
+    for cand in candidates:
         if cand in names:
             target = cand
             break
 
+    # 2️⃣ Endswith fallback
     if not target:
-        raise HTTPException(404, "Target file not found in EPUB")
+        for name in names:
+            for cand in candidates:
+                if name.lower().endswith(cand.lower()):
+                    target = name
+                    break
+            if target:
+                break
+
+    # 3️⃣ FINAL OPF fallback (🔥 THIS FIXES YOUR ISSUE)
+    if not target and normalized == "content.opf":
+        for name in names:
+            if name.lower().endswith(".opf"):
+                target = name
+                break
+
+    if not target:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Target file '{doc_path}' not found in EPUB"
+        )
 
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w", ZIP_DEFLATED) as zout:
         for name in names:
-            if name != target:
-                zout.writestr(name, zin.read(name))
+            if name == target:
+                continue
+            zout.writestr(name, zin.read(name))
+
         zout.writestr(target, new_html.encode("utf-8"))
 
     return out.getvalue()
+
 
 
 # =========================================================
@@ -153,61 +184,62 @@ def _parse_ace_issues(report: dict):
         "warnings": [],
     }
 
-    assertions = report.get("assertions") or report.get("earl:assertions") or []
+    top_assertions = report.get("assertions") or report.get("earl:assertions") or []
 
-    for a in assertions:
-        rule = (
-            a.get("assertionId")
-            or a.get("id")
-            or a.get("earl:test", {}).get("@id")
-            or a.get("earl:test", {}).get("title")
-            or "Document-level check"
-        )
+    for a in top_assertions:
+        subject = a.get("earl:testSubject", {})
+        file_url = subject.get("url")
+        if file_url:
+            file_url = file_url.replace("\\", "/").lstrip("/")
 
-        message = (
-            a.get("description")
-            or a.get("title")
-            or "Accessibility requirement failed"
-        )
+        nested_assertions = a.get("assertions") or []
 
-        result = a.get("result") or a.get("earl:result") or {}
-        outcome = str(
-            result.get("outcome") or result.get("earl:outcome") or ""
-        ).lower()
+        # --------------------------------------------------
+        # CASE 1: File-level issues (nested assertions exist)
+        # --------------------------------------------------
+        if nested_assertions and file_url:
+            for na in nested_assertions:
+                result = na.get("earl:result", {})
+                outcome = str(result.get("earl:outcome", "")).lower()
 
-        pointers = (
-            result.get("pointer", {})
-            or result.get("earl:pointer", {})
-        ).get("group", [])
+                rule = (
+                    na.get("earl:test", {}).get("dct:title")
+                    or "Accessibility rule"
+                )
 
-        # FILE-LEVEL ISSUES
-        if pointers:
-            for p in pointers:
+                message = (
+                    result.get("dct:description")
+                    or na.get("earl:test", {}).get("dct:description")
+                    or ""
+                )
+
                 item = {
                     "rule": rule,
                     "message": message,
-                    "file": p.get("path") or p.get("ptr:path"),
-                    "html": p.get("expression") or p.get("ptr:expression"),
+                    "file": file_url,
+                    "html": na.get("html"),
                 }
 
                 if "fail" in outcome:
                     issues["errors"].append(item)
                 elif "warn" in outcome:
                     issues["warnings"].append(item)
+
             continue
 
-        # DOCUMENT-LEVEL ISSUE (OPF)
-        item = {
-            "rule": rule,
-            "message": message,
-            "file": "content.opf",
-            "html": None,
-        }
+        # --------------------------------------------------
+        # CASE 2: TRUE document-level failure (rare)
+        # --------------------------------------------------
+        result = a.get("earl:result", {})
+        outcome = str(result.get("earl:outcome", "")).lower()
 
         if "fail" in outcome:
-            issues["errors"].append(item)
-        elif "warn" in outcome:
-            issues["warnings"].append(item)
+            issues["errors"].append({
+                "rule": "Document-level check",
+                "message": "Document-level accessibility requirement failed",
+                "file": "content.opf",
+                "html": None,
+            })
 
     return issues
 
@@ -219,7 +251,7 @@ def _parse_ace_issues(report: dict):
 def run_daisy_ace(epub_bytes: bytes, filename: str):
     ace = _get_ace_executable()
 
-    #  cache EPUB for doc_html
+    # cache EPUB for doc_html
     _LAST_QC_EPUB["bytes"] = epub_bytes
     _LAST_QC_EPUB["filename"] = filename
 
@@ -243,6 +275,13 @@ def run_daisy_ace(epub_bytes: bytes, filename: str):
             raise HTTPException(500, "Ace report.json missing")
 
         report = json.loads(json_report.read_text(encoding="utf-8"))
+
+        # ================= DEBUG: PRINT RAW ASSERTIONS =================
+        print("\n========== ACE ASSERTIONS ==========")
+        for a in report.get("assertions", []) or report.get("earl:assertions", []):
+            print(json.dumps(a, indent=2))
+        print("========== END ASSERTIONS ==========\n")
+        # ===============================================================
 
         summary = _summarize_ace_report(report)
         issues = _parse_ace_issues(report)
