@@ -6,6 +6,7 @@ import { useConversionStore } from "../../store/useConversionStore";
 export default function EPUBViewer({ file }) {
   const viewerRef = useRef(null);
   const renditionRef = useRef(null);
+  const bookRef = useRef(null);
 
   const {
     setEpubToc,
@@ -17,69 +18,88 @@ export default function EPUBViewer({ file }) {
   useEffect(() => {
     if (!file || !viewerRef.current) return;
 
+    //  clear previous iframe
     viewerRef.current.innerHTML = "";
 
-    const book = ePub(file);
+    let book;
 
-    const rendition = book.renderTo(viewerRef.current, {
-      width: "100%",
-      height: "100%",
-      flow: "scrolled-doc",
-      manager: "continuous",
-      spread: "none",
-    });
+    try {
+      // ✅ HANDLE ARRAYBUFFER (Accessible EPUB case)
+      if (file instanceof ArrayBuffer) {
+        book = ePub();
+        book.open(file);
+      }
+      // ✅ HANDLE URL / FILE (Normal EPUB upload)
+      else {
+        book = ePub(file);
+      }
 
-    rendition.display();
-    renditionRef.current = rendition;
+      bookRef.current = book;
 
-    /* -------- TOC -------- */
-    book.loaded.navigation.then((nav) => {
-      setEpubToc(
-        nav.toc.map((item) => ({
-          label: item.label,
-          href: item.href,
-        }))
-      );
-    });
-
-    /* -------- TAG EXTRACTION (RENDERED XHTML ONLY) -------- */
-    rendition.on("rendered", (section) => {
-      const iframe = viewerRef.current.querySelector("iframe");
-      if (!iframe) return;
-
-      const doc = iframe.contentDocument;
-      if (!doc) return;
-
-      const skip = new Set([
-        "html",
-        "head",
-        "body",
-        "meta",
-        "link",
-        "script",
-        "style",
-        "title",
-      ]);
-
-      const tags = new Set();
-
-      doc.querySelectorAll("*").forEach((el) => {
-        const tag = el.tagName.toLowerCase();
-        if (!skip.has(tag)) tags.add(tag);
+      const rendition = book.renderTo(viewerRef.current, {
+        width: "100%",
+        height: "100%",
+        flow: "scrolled-doc",
+        manager: "continuous",
+        spread: "none",
       });
 
-      // ✅ Store context for Tag Mapping
-      setSelectedPageHref(section.href);
-      setSelectedPageTags(Array.from(tags).sort());
-    });
+      renditionRef.current = rendition;
+      rendition.display();
+
+      /* -------- TOC -------- */
+      book.loaded.navigation.then((nav) => {
+        if (!nav) return;
+        setEpubToc(
+          nav.toc.map((item) => ({
+            label: item.label,
+            href: item.href,
+          }))
+        );
+      });
+
+      /* -------- TAG EXTRACTION (Rendered XHTML) -------- */
+      rendition.on("rendered", (section) => {
+        const iframe = viewerRef.current.querySelector("iframe");
+        if (!iframe) return;
+
+        const doc = iframe.contentDocument;
+        if (!doc) return;
+
+        const skip = new Set([
+          "html",
+          "head",
+          "body",
+          "meta",
+          "link",
+          "script",
+          "style",
+          "title",
+        ]);
+
+        const tags = new Set();
+
+        doc.querySelectorAll("*").forEach((el) => {
+          const tag = el.tagName.toLowerCase();
+          if (!skip.has(tag)) tags.add(tag);
+        });
+
+        setSelectedPageHref(section.href);
+        setSelectedPageTags(Array.from(tags).sort());
+      });
+    } catch (err) {
+      console.error("EPUBViewer failed:", err);
+    }
 
     return () => {
-      rendition.destroy();
-      book.destroy();
+      try {
+        renditionRef.current?.destroy();
+        bookRef.current?.destroy();
+      } catch {}
     };
   }, [file]);
 
-  /* -------- Jump when TOC clicked in TagMapping -------- */
+  /* -------- Jump when TOC clicked -------- */
   useEffect(() => {
     if (selectedTocItem && renditionRef.current) {
       renditionRef.current.display(selectedTocItem.href);

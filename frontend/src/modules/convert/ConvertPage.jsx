@@ -1,4 +1,3 @@
-// src/modules/convert/ConvertPage.jsx
 import React, { useState, useEffect, useRef } from "react";
 import EPUBViewer from "../epub/EPUBViewer";
 import PDFViewer from "../pdf/PDFViewer";
@@ -65,8 +64,6 @@ const convertBtn = (enabled, loading) => ({
     : "#9ca3af",
   color: "#fff",
   cursor: enabled ? "pointer" : "not-allowed",
-  boxShadow: enabled ? "0 8px 20px rgba(37,99,235,0.35)" : "none",
-  transition: "all 0.2s ease",
 });
 
 const accessibleBtn = (enabled, loading) => ({
@@ -81,15 +78,12 @@ const accessibleBtn = (enabled, loading) => ({
     : "#9ca3af",
   color: "#fff",
   cursor: enabled ? "pointer" : "not-allowed",
-  boxShadow: enabled ? "0 8px 20px rgba(5,150,105,0.35)" : "none",
-  transition: "all 0.2s ease",
 });
 
 const pageLayout = {
   display: "flex",
   gap: 20,
   padding: 20,
-  boxSizing: "border-box",
   height: `calc(100vh - ${headerHeight}px)`,
   background: "#f3f4f6",
 };
@@ -98,7 +92,6 @@ const cardBase = {
   background: "#ffffff",
   borderRadius: 12,
   padding: 16,
-  boxSizing: "border-box",
   boxShadow: "0 1px 3px rgba(15,23,42,0.08)",
 };
 
@@ -107,7 +100,6 @@ const middlePanel = {
   flex: 1,
   display: "flex",
   flexDirection: "column",
-  gap: 12,
 };
 
 const rightPanel = {
@@ -116,23 +108,9 @@ const rightPanel = {
   minWidth: 340,
   display: "flex",
   flexDirection: "column",
-  gap: 12,
 };
 
 const hintText = { fontSize: 11, color: "#6b7280" };
-
-/* ---------- helper ---------- */
-function extractSemanticTagsFromHtml(html) {
-  if (!html) return [];
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const skip = new Set(["html","head","body","meta","link","script","style"]);
-  const tags = new Set();
-  doc.querySelectorAll("*").forEach(el => {
-    const t = el.tagName.toLowerCase();
-    if (!skip.has(t)) tags.add(t);
-  });
-  return [...tags];
-}
 
 export default function ConvertPage() {
   const {
@@ -142,36 +120,46 @@ export default function ConvertPage() {
     setEpubFile,
     setPdfFile,
     setAccessibleHtml,
-    setHtmlTags,
     resetAfterConvert,
     setBookId,
     setEpubToc,
   } = useConversionStore();
 
-  /*  QC selected issue */
   const selectedIssue = useQCStore((s) => s.selectedIssue);
 
   const textareaRef = useRef(null);
 
   const [localEpub, setLocalEpub] = useState(epubFile);
   const [localPdf, setLocalPdf] = useState(pdfFile);
-const [htmlLoading, setHtmlLoading] = useState(false);
-const [accessibleLoading, setAccessibleLoading] = useState(false);
+
+  const [htmlLoading, setHtmlLoading] = useState(false);
+  const [accessibleLoading, setAccessibleLoading] = useState(false);
+
   const [previewMode, setPreviewMode] = useState("pdf");
   const [accessibleEpubUrl, setAccessibleEpubUrl] = useState(null);
+  const [accessibleEpubFile, setAccessibleEpubFile] = useState(null);
+  const [accessibleEpubBuffer, setAccessibleEpubBuffer] = useState(null);
 
+
+  /* cleanup blob URL */
+  useEffect(() => {
+    return () => {
+      if (accessibleEpubUrl) {
+        URL.revokeObjectURL(accessibleEpubUrl);
+      }
+    };
+  }, [accessibleEpubUrl]);
 
   useEffect(() => {
     setLocalEpub(epubFile);
     setLocalPdf(pdfFile);
   }, [epubFile, pdfFile]);
 
-  /* ---------- 🔥 HIGHLIGHT QC ERROR LINE ---------- */
+  /* ---------- highlight QC line ---------- */
   useEffect(() => {
     if (
       previewMode !== "html" ||
-      !selectedIssue ||
-      !selectedIssue.line ||
+      !selectedIssue?.line ||
       !textareaRef.current ||
       !accessibleHtml
     )
@@ -180,24 +168,17 @@ const [accessibleLoading, setAccessibleLoading] = useState(false);
     const textarea = textareaRef.current;
     const lines = accessibleHtml.split("\n");
     const lineIndex = selectedIssue.line - 1;
-
     if (!lines[lineIndex]) return;
 
     let start = 0;
-    for (let i = 0; i < lineIndex; i++) {
-      start += lines[i].length + 1;
-    }
-
-    const end = start + lines[lineIndex].length;
+    for (let i = 0; i < lineIndex; i++) start += lines[i].length + 1;
 
     textarea.focus();
-    textarea.setSelectionRange(start, end);
-
-    const lineHeight = 18; // approx monospace
-    textarea.scrollTop = lineIndex * lineHeight;
+    textarea.setSelectionRange(start, start + lines[lineIndex].length);
+    textarea.scrollTop = lineIndex * 18;
   }, [selectedIssue, previewMode, accessibleHtml]);
 
-  /* ---------------- EPUB UPLOAD ---------------- */
+  /* ---------- upload ---------- */
   async function handleEpubUpload(file) {
     if (!file) return;
 
@@ -213,44 +194,37 @@ const [accessibleLoading, setAccessibleLoading] = useState(false);
     });
 
     const data = await res.json();
-
     if (data.book_id) setBookId(data.book_id);
     if (Array.isArray(data.toc)) setEpubToc(data.toc);
   }
 
-  /* ---------------- CONVERT ---------------- */
+  /* ---------- convert to HTML ---------- */
   async function handleConvert() {
-  if (!localEpub) return;
+    if (!localEpub) return;
 
-  setHtmlLoading(true);
-  try {
-    const fd = new FormData();
-    fd.append("epub_file", localEpub);
-    if (localPdf) fd.append("pdf_file", localPdf);
+    setHtmlLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("epub_file", localEpub);
+      if (localPdf) fd.append("pdf_file", localPdf);
 
-    const res = await fetch("http://localhost:8000/api/convert", {
-      method: "POST",
-      body: fd,
-    });
+      const res = await fetch("http://localhost:8000/api/convert", {
+        method: "POST",
+        body: fd,
+      });
 
-    const data = await res.json();
-    const html = data?.accessible?.accessible_html ?? "";
-
-    setAccessibleHtml(html);
-    resetAfterConvert();
-    setPreviewMode("html");
-
-  } catch (e) {
-    console.error(e);
-    alert("Convert failed");
-  } finally {
-    setHtmlLoading(false);
+      const data = await res.json();
+      setAccessibleHtml(data?.accessible?.accessible_html ?? "");
+      resetAfterConvert();
+      setPreviewMode("html");
+    } catch {
+      alert("Convert failed");
+    } finally {
+      setHtmlLoading(false);
+    }
   }
-}
 
-
-  /* ---------- convert to Accessible EPUB ---------- */
-  async function handleConvertAccessible() {
+async function handleConvertAccessible() {
   if (!localEpub) return;
 
   setAccessibleLoading(true);
@@ -262,17 +236,22 @@ const [accessibleLoading, setAccessibleLoading] = useState(false);
     if (!res.ok) throw new Error("Auto-fix failed");
 
     const data = await res.json();
+    if (!data.epub_b64) throw new Error("No epub_b64");
 
-    // 🔥 decode base64 → Blob
+    // base64 → blob
     const binary = atob(data.epub_b64);
-    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
-    const blob = new Blob([bytes], { type: "application/epub+zip" });
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    const blob = new Blob([bytes], {
+      type: "application/epub+zip",
+    });
 
     const url = URL.createObjectURL(blob);
     setAccessibleEpubUrl(url);
-
     setPreviewMode("accessible");
-    alert("Accessible EPUB generated successfully");
 
   } catch (e) {
     console.error(e);
@@ -282,8 +261,8 @@ const [accessibleLoading, setAccessibleLoading] = useState(false);
   }
 }
 
-  return (
 
+  return (
     <div style={pageLayout}>
       {/* LEFT */}
       <aside style={controlCard}>
@@ -292,12 +271,8 @@ const [accessibleLoading, setAccessibleLoading] = useState(false);
         <div style={inputGroup}>
           <label style={label}>EPUB File</label>
           <label style={fileBox}>
-            <input
-              type="file"
-              accept=".epub"
-              hidden
-              onChange={(e) => handleEpubUpload(e.target.files[0])}
-            />
+            <input type="file" hidden accept=".epub"
+              onChange={(e) => handleEpubUpload(e.target.files[0])} />
             Choose EPUB file
           </label>
           {localEpub && <div style={fileName}>{localEpub.name}</div>}
@@ -306,36 +281,33 @@ const [accessibleLoading, setAccessibleLoading] = useState(false);
         <div style={inputGroup}>
           <label style={label}>Reference PDF</label>
           <label style={fileBox}>
-            <input
-              type="file"
-              accept="application/pdf"
-              hidden
+            <input type="file" hidden accept="application/pdf"
               onChange={(e) => {
                 setLocalPdf(e.target.files[0] || null);
                 setPdfFile(e.target.files[0] || null);
-              }}
-            />
+              }} />
             Choose PDF file (optional)
           </label>
           {localPdf && <div style={fileName}>{localPdf.name}</div>}
         </div>
 
         <button
-  onClick={handleConvert}
-  disabled={!localEpub || htmlLoading || accessibleLoading}
-  style={convertBtn(!!localEpub, htmlLoading)}
->
-  {htmlLoading ? "⏳ Converting…" : "Convert EPUB to HTML"}
-</button>
+          onClick={handleConvert}
+          disabled={!localEpub || htmlLoading || accessibleLoading}
+          style={convertBtn(!!localEpub, htmlLoading)}
+        >
+          {htmlLoading ? "⏳ Converting…" : "Convert EPUB to HTML"}
+        </button>
 
         <button
-  onClick={handleConvertAccessible}
-  disabled={!localEpub || htmlLoading || accessibleLoading}
-  style={accessibleBtn(!!localEpub, accessibleLoading)}
->
-  {accessibleLoading ? "⏳ Processing…" : "Convert EPUB to Accessible EPUB"}
-</button>
-
+          onClick={handleConvertAccessible}
+          disabled={!localEpub || htmlLoading || accessibleLoading}
+          style={accessibleBtn(!!localEpub, accessibleLoading)}
+        >
+          {accessibleLoading
+            ? "⏳ Processing…"
+            : "Convert EPUB to Accessible EPUB"}
+        </button>
       </aside>
 
       {/* MIDDLE */}
@@ -347,104 +319,99 @@ const [accessibleLoading, setAccessibleLoading] = useState(false);
       </main>
 
       {/* RIGHT */}
-<aside style={rightPanel}>
-  <div style={{ display: "flex", justifyContent: "space-between" }}>
-    <h3>
-      {previewMode === "pdf"
-        ? "PDF Preview"
-        : previewMode === "html"
-        ? "HTML Source"
-        : "Accessible EPUB"}
-    </h3>
+      <aside style={rightPanel}>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <h3>
+            {previewMode === "pdf"
+              ? "PDF Preview"
+              : previewMode === "html"
+              ? "HTML Source"
+              : "Accessible EPUB"}
+          </h3>
 
-    <div style={{ display: "flex", gap: 6 }}>
-      {["pdf", "html", "accessible"].map((m) => (
-        <button
-          key={m}
-          onClick={() => setPreviewMode(m)}
+          <div style={{ display: "flex", gap: 6 }}>
+            {["pdf", "html", "accessible"].map((m) => (
+              <button
+                key={m}
+                onClick={() => setPreviewMode(m)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  background: previewMode === m ? "#2563eb" : "#fff",
+                  color: previewMode === m ? "#fff" : "#111",
+                }}
+              >
+                {m === "accessible" ? "ACCESSIBLE EPUB" : m.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, marginTop: 8 }}>
+          {previewMode === "pdf" &&
+            (localPdf ? <PDFViewer file={localPdf} /> : <div style={hintText}>No PDF uploaded</div>)}
+
+          {previewMode === "html" &&
+            (accessibleHtml ? (
+              <textarea
+                ref={textareaRef}
+                readOnly
+                value={accessibleHtml}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  border: "none",
+                  background: "#0b1120",
+                  color: "#e5e7eb",
+                  fontFamily: "monospace",
+                  resize: "none",
+                }}
+              />
+            ) : (
+              <div style={{ color: "#9ca3af" }}>Run Convert to see HTML</div>
+            ))}
+
+        {/* 🔥 ACCESSIBLE EPUB */}
+{/* 🔥 ACCESSIBLE EPUB */}
+{previewMode === "accessible" && (
+  accessibleEpubUrl ? (
+    <>
+      {/* EPUB PREVIEW */}
+      <div style={{ height: "85%", overflow: "auto" }}>
+        <EPUBViewer
+          key={accessibleEpubUrl}
+          file={accessibleEpubUrl}   //  URL, not ArrayBuffer
+        />
+      </div>
+
+      {/* DOWNLOAD */}
+      <div style={{ textAlign: "center", marginTop: 12 }}>
+        <a
+          href={accessibleEpubUrl}
+          download="accessible.epub"
           style={{
-            padding: "6px 12px",
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            background: previewMode === m ? "#2563eb" : "#fff",
-            color: previewMode === m ? "#fff" : "#111",
+            padding: "10px 16px",
+            background: "#059669",
+            color: "#fff",
+            borderRadius: 8,
+            textDecoration: "none",
+            fontWeight: 600,
+            display: "inline-block",
           }}
         >
-          {m === "accessible" ? "ACCESSIBLE EPUB" : m.toUpperCase()}
-        </button>
-      ))}
+          Download Accessible EPUB
+        </a>
+      </div>
+    </>
+  ) : (
+    <div style={{ color: "#6b7280" }}>
+      Convert EPUB to Accessible EPUB to preview here
     </div>
-  </div>
-
-  <div
-    style={{
-      height: PREVIEW_HEIGHT,
-      border: "1px solid #e5e7eb",
-      borderRadius: 10,
-      overflow: "auto",
-      background: previewMode === "html" ? "#0b1120" : "#f9fafb",
-      padding: 8,
-    }}
-  >
-    {/* PDF */}
-    {previewMode === "pdf" &&
-      (localPdf ? (
-        <PDFViewer file={localPdf} />
-      ) : (
-        <div style={hintText}>No PDF uploaded</div>
-      ))}
-
-    {/* HTML */}
-    {previewMode === "html" &&
-      (accessibleHtml ? (
-        <textarea
-          ref={textareaRef}
-          readOnly
-          value={accessibleHtml}
-          style={{
-            width: "100%",
-            height: "100%",
-            border: "none",
-            background: "transparent",
-            color: "#e5e7eb",
-            fontFamily: "monospace",
-            resize: "none",
-            caretColor: "transparent",
-          }}
-        />
-      ) : (
-        <div style={{ color: "#9ca3af" }}>Run Convert to see HTML</div>
-      ))}
-
-    {/* 🔥 ACCESSIBLE EPUB */}
-    {previewMode === "accessible" && (
-      accessibleEpubUrl ? (
-        <div style={{ textAlign: "center", marginTop: 40 }}>
-          <p style={{ marginBottom: 12 }}>Accessible EPUB ready ✅</p>
-          <a
-            href={accessibleEpubUrl}
-            download="accessible.epub"
-            style={{
-              padding: "10px 16px",
-              background: "#059669",
-              color: "#fff",
-              borderRadius: 8,
-              textDecoration: "none",
-              fontWeight: 600,
-            }}
-          >
-            Download Accessible EPUB
-          </a>
-        </div>
-      ) : (
-        <div style={{ color: "#6b7280" }}>
-          Convert EPUB to Accessible EPUB to view here
-        </div>
-      )
-    )}
-  </div>
-</aside>
-
+  )
+)}
+       </div>
+      </aside>
     </div>
   );
 }

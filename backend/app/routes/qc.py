@@ -4,6 +4,7 @@ import traceback
 import io
 import zipfile
 import time
+import base64
 from app.services.epub_autofix_service import auto_fix_epub
 from app.services.qc_service import _LAST_QC_EPUB
 
@@ -111,28 +112,22 @@ async def qc_fix(
 # -------------------------------------------------
 @router.post("/auto-fix")
 async def qc_auto_fix():
-    """
-    Uses Excel-based accessibility rules
-    and returns Accessible EPUB as base64
-    """
-    from app.services.epub_autofix_service import auto_fix_epub
-    import base64
+    epub_bytes = _LAST_QC_EPUB.get("bytes")
 
-    epubs = sorted(
-        [p for p in UPLOADS_DIR.iterdir() if p.suffix.lower() == ".epub"],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
+    if not epub_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail="No EPUB available. Run QC or upload EPUB first."
+        )
 
-    if not epubs:
-        raise HTTPException(404, "No EPUB uploaded")
+    try:
+        fixed_epub_bytes = auto_fix_epub(epub_bytes)
 
-    latest_epub = epubs[0]
+        return {
+            "epub_b64": base64.b64encode(fixed_epub_bytes).decode("utf-8"),
+            "filename": "accessible.epub",
+        }
 
-    # 🔥 RUN YOUR EXISTING SCRIPT
-    fixed_bytes = auto_fix_epub(latest_epub)
-
-    return {
-        "filename": f"{latest_epub.stem}-accessible.epub",
-        "epub_b64": base64.b64encode(fixed_bytes).decode("utf-8"),
-    }
+    except Exception as e:
+        print("AUTO FIX ERROR:", e)
+        raise HTTPException(status_code=500, detail=str(e))
