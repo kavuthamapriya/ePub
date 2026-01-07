@@ -102,3 +102,4 @@ dmypy.json
 
 # EPUB extraction temp folder
 backend/extracted_epub/
+backend/uploads
