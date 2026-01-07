@@ -34,12 +34,12 @@ function TopNav() {
       >
         Convert
       </NavLink>
-      <NavLink
+      {/* <NavLink
         to="/mapping"
         style={({ isActive }) => (isActive ? activeStyle : linkStyle)}
       >
         Tag Mapping
-      </NavLink>
+      </NavLink> */}
       <NavLink
         to="/qc"
         style={({ isActive }) => (isActive ? activeStyle : linkStyle)}

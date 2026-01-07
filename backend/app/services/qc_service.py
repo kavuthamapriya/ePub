@@ -1,5 +1,4 @@
 # backend/app/services/qc_service.py
-
 import os
 import json
 import base64
@@ -133,7 +132,6 @@ def write_doc_into_epub(epub_bytes: bytes, doc_path: str, new_html: str) -> byte
         zout.writestr(target, new_html.encode("utf-8"))
 
     return out.getvalue()
-
 
 
 # =========================================================

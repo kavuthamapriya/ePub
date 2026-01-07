@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQCStore } from "../../store/useQCStore";
 import QCSummaryBar from "../qc/QCSummaryBar";
 
@@ -35,6 +35,9 @@ export default function TagMappingPage() {
     setLastEditedFile,
   } = useQCStore();
 
+  /* 🔴 textarea ref */
+  const textareaRef = useRef(null);
+
   /* --------------------------------
      Active issue list
   --------------------------------- */
@@ -62,7 +65,6 @@ export default function TagMappingPage() {
 
     const docPath = isOPF ? "content.opf" : issue.file;
 
-    // 🔥 THIS IS CRITICAL
     setLastEditedFile(docPath);
 
     try {
@@ -82,7 +84,39 @@ export default function TagMappingPage() {
   };
 
   /* --------------------------------
-     SAVE + RE-RUN QC (OPF + XHTML)
+     🔥 HIGHLIGHT ERROR LINE
+  --------------------------------- */
+  useEffect(() => {
+    if (
+      !selectedIssue ||
+      !selectedIssue.line ||
+      !selectedHtml ||
+      !textareaRef.current
+    )
+      return;
+
+    const textarea = textareaRef.current;
+    const lines = selectedHtml.split("\n");
+    const lineIndex = selectedIssue.line - 1;
+
+    if (!lines[lineIndex]) return;
+
+    let start = 0;
+    for (let i = 0; i < lineIndex; i++) {
+      start += lines[i].length + 1;
+    }
+
+    const end = start + lines[lineIndex].length;
+
+    textarea.focus();
+    textarea.setSelectionRange(start, end);
+
+    const lineHeight = 18; // approx for monospace
+    textarea.scrollTop = lineIndex * lineHeight;
+  }, [selectedIssue, selectedHtml]);
+
+  /* --------------------------------
+     SAVE + RE-RUN QC
   --------------------------------- */
   const handleSaveAndRerun = async () => {
     if (!lastEditedFile) return;
@@ -105,7 +139,6 @@ export default function TagMappingPage() {
 
       alert("Saved & QC re-run successfully ✅");
 
-      // refresh QC state
       useQCStore.getState().setQcSummary(data.summary);
       useQCStore.getState().setQcIssues(data.issues);
     } catch (err) {
@@ -132,17 +165,16 @@ export default function TagMappingPage() {
           marginTop: 20,
         }}
       >
-        {/* LEFT: ISSUE LIST */}
+        {/* LEFT */}
         <div
-  style={{
-    background: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    height: 600,          // 🔥 fixed height
-    overflowY: "auto",    // 🔥 enable vertical scroll
-  }}
->
-
+          style={{
+            background: "#fff",
+            borderRadius: 12,
+            padding: 16,
+            height: 600,
+            overflowY: "auto",
+          }}
+        >
           <h3>
             {activeType === "passes"
               ? "Passes (count only)"
@@ -177,13 +209,24 @@ export default function TagMappingPage() {
                   )}
                 </strong>
                 <div>{issue.message}</div>
-                <small>{issue.file}</small>
+                <div
+  style={{
+    fontSize: 15,
+    marginTop: 4,
+    color: "#2563eb",
+    fontFamily: "monospace",
+    wordBreak: "break-all",
+  }}
+>
+  {issue.file}
+</div>
+
               </div>
             ))
           )}
         </div>
 
-        {/* RIGHT: CODE EDITOR */}
+        {/* RIGHT */}
         <div
           style={{
             background: "#fff",
@@ -201,6 +244,7 @@ export default function TagMappingPage() {
           ) : (
             <>
               <textarea
+                ref={textareaRef}
                 value={selectedHtml}
                 onChange={(e) => setSelectedHtml(e.target.value)}
                 style={{
@@ -214,6 +258,7 @@ export default function TagMappingPage() {
                   resize: "none",
                   whiteSpace: "pre",
                   background: "#fafafa",
+                  caretColor: "transparent",
                 }}
               />
 

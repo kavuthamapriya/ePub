@@ -4,6 +4,9 @@ import traceback
 import io
 import zipfile
 import time
+from app.services.epub_autofix_service import auto_fix_epub
+from app.services.qc_service import _LAST_QC_EPUB
+
 
 from app.services.qc_service import (
     run_daisy_ace,
@@ -103,3 +106,33 @@ async def qc_fix(
     except Exception as e:
         print(traceback.format_exc())
         raise HTTPException(500, str(e))
+# -------------------------------------------------
+# Convert EPUB → Accessible EPUB (DOWNLOADABLE)
+# -------------------------------------------------
+@router.post("/auto-fix")
+async def qc_auto_fix():
+    """
+    Uses Excel-based accessibility rules
+    and returns Accessible EPUB as base64
+    """
+    from app.services.epub_autofix_service import auto_fix_epub
+    import base64
+
+    epubs = sorted(
+        [p for p in UPLOADS_DIR.iterdir() if p.suffix.lower() == ".epub"],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+
+    if not epubs:
+        raise HTTPException(404, "No EPUB uploaded")
+
+    latest_epub = epubs[0]
+
+    # 🔥 RUN YOUR EXISTING SCRIPT
+    fixed_bytes = auto_fix_epub(latest_epub)
+
+    return {
+        "filename": f"{latest_epub.stem}-accessible.epub",
+        "epub_b64": base64.b64encode(fixed_bytes).decode("utf-8"),
+    }

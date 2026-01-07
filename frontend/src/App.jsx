@@ -36,14 +36,14 @@ function App() {
 
       {/* Tag Mapping Section */}
       <section style={{ marginBottom: "24px" }}>
-        <h2 style={{ margin: "0 0 8px 0", color: "#111827" }}>Tag Mapping</h2>
-        {/* ✅ IMPORTANT CHANGE HERE */}
+        <h2 style={{ margin: "0 0 8px 0", color: "#111827" }}>QC Validation</h2>
+        {/*  IMPORTANT CHANGE HERE */}
         <EpubWorkspace />
       </section>
 
       {/* QC Section */}
       <section>
-        <h2 style={{ margin: "0 0 8px 0", color: "#111827" }}>QC</h2>
+        {/* <h2 style={{ margin: "0 0 8px 0", color: "#111827" }}>QC</h2> */}
         <QCPage />
       </section>
     </div>
