@@ -126,3 +126,31 @@ async def convert_epub(
     except Exception as e:
         print("[convert] Unexpected error:", e)
         raise HTTPException(status_code=500, detail=str(e))
+@router.post("/convert-epub")
+async def convert_epub_accessible(
+    epub_file: UploadFile = File(...)
+):
+    """
+    EPUB → Accessible EPUB
+    (Rules-based, NO Gemini)
+    """
+    if not epub_file.filename.lower().endswith(".epub"):
+        raise HTTPException(status_code=400, detail="Only EPUB files allowed")
+
+    try:
+        epub_bytes = await epub_file.read()
+
+        # 🔥 THIS runs your rules engine
+        accessible_epub_bytes = auto_fix_epub(epub_bytes)
+
+        return Response(
+            content=accessible_epub_bytes,
+            media_type="application/epub+zip",
+            headers={
+                "Content-Disposition": "attachment; filename=accessible.epub"
+            },
+        )
+
+    except Exception as e:
+        print("[convert-epub] Error:", e)
+        raise HTTPException(status_code=500, detail=str(e))

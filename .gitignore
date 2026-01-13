@@ -104,3 +104,9 @@ dmypy.json
 backend/extracted_epub/
 backend/uploads
 backend/storage
+backend/workspaces/
+
+# EPUB / PDF generated files
+*.epub
+*.pdf
+*.zip

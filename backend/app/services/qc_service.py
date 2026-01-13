@@ -10,6 +10,9 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from zipfile import ZIP_DEFLATED
 from fastapi import HTTPException
+from app.services.workspace_service import get_workspace_path
+from app.services.qc_runner import run_qc_on_folder
+
 
 # =========================================================
 # 🔥 GLOBAL CACHE: last QC EPUB (single-user dev safe)
@@ -294,3 +297,13 @@ def run_daisy_ace(epub_bytes: bytes, filename: str):
             "report_zip_b64": base64.b64encode(zip_bytes).decode("ascii"),
             "report_filename": f"{Path(filename).stem}-ace-report.zip",
         }
+def run_qc(book_id: str):
+    """
+    Run QC on current WORKSPACE (draft state)
+    """
+    workspace_path = get_workspace_path(book_id)
+
+    if not workspace_path.exists():
+        raise RuntimeError("Workspace not found")
+
+    return run_qc_on_folder(workspace_path)

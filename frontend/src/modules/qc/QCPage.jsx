@@ -7,7 +7,7 @@ import { useConversionStore } from "../../store/useConversionStore";
 
 const pageWrapper = {
   display: "grid",
-  gridTemplateColumns: "260px 1fr 1fr",
+  gridTemplateColumns: "260px 1fr ",
   gap: 16,
   padding: 16,
   backgroundColor: "#f3f4f6",
@@ -163,7 +163,7 @@ export default function QCPage() {
       </section>
 
       {/* ---------- RIGHT: ACCESSIBLE EPUB PREVIEW ---------- */}
-      <section style={panel}>
+      {/* <section style={panel}>
         <div style={title}>Accessible EPUB Preview</div>
         <div style={subtitle}>
           Preview of the converted accessible EPUB.
@@ -179,10 +179,9 @@ export default function QCPage() {
             color: "#6b7280",
           }}
         >
-          {/* Later: plug EPUBViewer here */}
           EPUB preview component goes here.
         </div>
-      </section>
+      </section> */}
     </div>
   );
 }

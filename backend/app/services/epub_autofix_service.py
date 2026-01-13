@@ -22,6 +22,7 @@ def auto_fix_epub(epub_bytes: bytes) -> bytes:
             zf.extractall(extract_dir)
 
         # 2️⃣ Apply accessibility rules
+        print("🔥 CALLING apply_accessibility_rules 🔥")
         apply_accessibility_rules(extract_dir)
 
         # 3️⃣ Rebuild EPUB CORRECTLY
