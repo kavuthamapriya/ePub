@@ -9,8 +9,12 @@ from app.services.epub_standard_rules import apply_standard_rules_from_excel
 
 # 📌 Path to your STANDARD RULES Excel
 # You can move this to config later if needed
-STANDARD_RULES_EXCEL = Path("rules/INForm to Accessibility_Conversion Points.xlsx")
+STANDARD_RULES_EXCEL = Path("rules/INForm_to_Accessibility_Standard_Rules_UPDATED.xlsx")
 
+apply_standard_rules_from_excel(
+    extracted_dir=workspace_dir,
+    excel_path=STANDARD_RULES_EXCEL,
+)
 
 def rebuild_epub_accessible(workspace_dir: Path) -> bytes:
     """

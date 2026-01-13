@@ -34,7 +34,7 @@ function SummaryBox({ label, value, bg, color, onClick }) {
 }
 
 /* --------------------------------
-   QC Summary Bar (FINAL – backend driven)
+   QC Summary Bar (FINAL)
 --------------------------------- */
 export default function QCSummaryBar({
   onErrorsClick,
@@ -51,7 +51,7 @@ export default function QCSummaryBar({
     setQcIssues,
   } = useQCStore();
 
-  // prevent duplicate runs for same EPUB
+  // Prevent duplicate QC for same file
   const lastRunRef = useRef(null);
 
   useEffect(() => {
@@ -80,10 +80,7 @@ export default function QCSummaryBar({
 
         const data = await res.json();
 
-        /* --------------------------------
-           ✅ SINGLE SOURCE OF TRUTH
-           Backend already parsed ACE
-        --------------------------------- */
+        // ✅ Backend is single source of truth
         setQcIssues(data.issues || { errors: [], warnings: [], passes: [] });
         setQcSummary(
           data.summary || { errors: 0, warnings: 0, passes: 0 }
@@ -99,26 +96,49 @@ export default function QCSummaryBar({
     runQcAutomatically();
   }, [epubFile, setQcStatus, setQcIssues, setQcSummary]);
 
-  // hide until EPUB exists
+  // Hide until EPUB exists
   if (!epubFile) return null;
 
   return (
     <div
       style={{
         display: "flex",
+        flexDirection: "column",
         gap: 12,
         marginBottom: 16,
-        alignItems: "center",
       }}
     >
+      {/* 🔥 LOADING STATE */}
       {qcStatus === "running" && (
-        <div style={{ fontSize: 13, color: "#6b7280" }}>
-          Running accessibility checks…
+        <div style={{ width: "100%" }}>
+          <div
+            style={{
+              fontSize: 12,
+              color: "#374151",
+              marginBottom: 6,
+            }}
+          >
+            Running accessibility checks…
+          </div>
+
+          <div
+            style={{
+              height: 6,
+              width: "100%",
+              background: "#e5e7eb",
+              borderRadius: 999,
+              overflow: "hidden",
+              position: "relative",
+            }}
+          >
+            <div className="qc-shimmer-bar" />
+          </div>
         </div>
       )}
 
+      {/* ✅ RESULT STATE */}
       {qcStatus !== "running" && (
-        <>
+        <div style={{ display: "flex", gap: 12 }}>
           <SummaryBox
             label="Errors"
             value={qcSummary.errors}
@@ -140,8 +160,36 @@ export default function QCSummaryBar({
             color="#166534"
             onClick={onPassesClick}
           />
-        </>
+        </div>
       )}
+
+      {/* 🔧 LOCAL CSS (scoped & safe) */}
+      <style>
+        {`
+          .qc-shimmer-bar {
+            position: absolute;
+            height: 100%;
+            width: 40%;
+            background: linear-gradient(
+              90deg,
+              #2563eb 0%,
+              #60a5fa 50%,
+              #2563eb 100%
+            );
+            animation: qc-shimmer 1.3s infinite ease-in-out;
+            border-radius: 999px;
+          }
+
+          @keyframes qc-shimmer {
+            0% {
+              left: -40%;
+            }
+            100% {
+              left: 100%;
+            }
+          }
+        `}
+      </style>
     </div>
   );
 }
