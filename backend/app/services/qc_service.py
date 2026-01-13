@@ -299,7 +299,7 @@ def run_daisy_ace(epub_bytes: bytes, filename: str):
         }
 def run_qc(book_id: str):
     """
-    Run QC on current WORKSPACE (draft state)
+    Run DAISY on WORKSPACE (no re-upload)
     """
     workspace_path = get_workspace_path(book_id)
 
