@@ -25,6 +25,9 @@ export const useQCStore = create((set) => ({
   // 🔥 Track last edited XHTML
   lastEditedFile: null,
 
+  // 🔥 NEW — The latest DAISY ACE report (Base64 ZIP)
+  reportZipB64: null,
+
   // -------- setters --------
   setQcStatus: (status) => set({ qcStatus: status }),
 
@@ -49,6 +52,9 @@ export const useQCStore = create((set) => ({
   setSelectedIssue: (issue) => set({ selectedIssue: issue }),
   setSelectedHtml: (html) => set({ selectedHtml: html }),
 
-  // 🔥 NEW
+  // Track last edited XHTML file
   setLastEditedFile: (file) => set({ lastEditedFile: file }),
+
+  // 🔥 NEW — store latest DAISY report (auto QC + rerun QC will use this)
+  setReportZipB64: (b64) => set({ reportZipB64: b64 }),
 }));

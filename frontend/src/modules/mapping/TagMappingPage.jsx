@@ -1,13 +1,19 @@
 import React, { useState, useRef, useEffect } from "react";
+import {
+  FiAlertTriangle,
+  FiFileText,
+  FiCheckCircle,
+  FiSave,
+  FiLoader,
+} from "react-icons/fi";
 import { useQCStore } from "../../store/useQCStore";
 import QCSummaryBar from "../qc/QCSummaryBar";
 
 /* --------------------------------
-   Helper: group repeated issues
+   Group repeated rules
 --------------------------------- */
 function groupIssuesByRule(issues = []) {
   const map = {};
-
   issues.forEach((issue) => {
     const key = issue.rule || "Unknown rule";
     if (!map[key]) {
@@ -16,7 +22,6 @@ function groupIssuesByRule(issues = []) {
       map[key].count += 1;
     }
   });
-
   return Object.values(map);
 }
 
@@ -35,24 +40,21 @@ export default function TagMappingPage() {
     setLastEditedFile,
   } = useQCStore();
 
-  /* 🔴 textarea ref */
   const textareaRef = useRef(null);
 
   /* --------------------------------
-     Active issue list
+     Get current list
   --------------------------------- */
   const getActiveList = () => {
     let list = [];
-
     if (activeType === "errors") list = qcIssues.errors || [];
     if (activeType === "warnings") list = qcIssues.warnings || [];
     if (activeType === "passes") return [];
-
     return groupIssuesByRule(list);
   };
 
   /* --------------------------------
-     Issue click handler
+     Load HTML for issue
   --------------------------------- */
   const handleIssueClick = async (issue) => {
     setSelectedIssue(issue);
@@ -64,7 +66,6 @@ export default function TagMappingPage() {
       issue.file.toLowerCase().includes("package");
 
     const docPath = isOPF ? "content.opf" : issue.file;
-
     setLastEditedFile(docPath);
 
     try {
@@ -84,39 +85,30 @@ export default function TagMappingPage() {
   };
 
   /* --------------------------------
-     🔥 HIGHLIGHT ERROR LINE
+     Highlight line
   --------------------------------- */
   useEffect(() => {
-    if (
-      !selectedIssue ||
-      !selectedIssue.line ||
-      !selectedHtml ||
-      !textareaRef.current
-    )
-      return;
+    if (!selectedIssue || !selectedIssue.line) return;
+    if (!selectedHtml || !textareaRef.current) return;
 
     const textarea = textareaRef.current;
     const lines = selectedHtml.split("\n");
-    const lineIndex = selectedIssue.line - 1;
+    const index = selectedIssue.line - 1;
 
-    if (!lines[lineIndex]) return;
+    if (!lines[index]) return;
 
     let start = 0;
-    for (let i = 0; i < lineIndex; i++) {
-      start += lines[i].length + 1;
-    }
+    for (let i = 0; i < index; i++) start += lines[i].length + 1;
 
-    const end = start + lines[lineIndex].length;
+    const end = start + lines[index].length;
 
     textarea.focus();
     textarea.setSelectionRange(start, end);
-
-    const lineHeight = 18; // approx for monospace
-    textarea.scrollTop = lineIndex * lineHeight;
+    textarea.scrollTop = index * 20;
   }, [selectedIssue, selectedHtml]);
 
   /* --------------------------------
-     SAVE + RE-RUN QC
+     Save & Rerun QC
   --------------------------------- */
   const handleSaveAndRerun = async () => {
     if (!lastEditedFile) return;
@@ -150,7 +142,7 @@ export default function TagMappingPage() {
   };
 
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: 22 }}>
       <QCSummaryBar
         onErrorsClick={() => setActiveType("errors")}
         onWarningsClick={() => setActiveType("warnings")}
@@ -161,31 +153,36 @@ export default function TagMappingPage() {
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: 16,
+          gap: 20,
           marginTop: 20,
         }}
       >
-        {/* LEFT */}
+        {/* LEFT LIST */}
         <div
           style={{
             background: "#fff",
-            borderRadius: 12,
-            padding: 16,
+            borderRadius: 16,
+            padding: 18,
             height: 600,
             overflowY: "auto",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
           }}
         >
-          <h3>
-            {activeType === "passes"
-              ? "Passes (count only)"
-              : activeType.charAt(0).toUpperCase() + activeType.slice(1)}
+          <h3 style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            {activeType === "errors" && <FiAlertTriangle color="#dc2626" />}
+            {activeType === "warnings" && <FiAlertTriangle color="#f59e0b" />}
+            {activeType === "passes" && <FiCheckCircle color="#16a34a" />}
+            {activeType.charAt(0).toUpperCase() + activeType.slice(1)}
           </h3>
 
+          {/* Passes */}
           {activeType === "passes" ? (
-            <p>
-              Passing checks are not listed.
-              <br />
-              Total passes: <strong>{qcSummary?.passes}</strong>
+            <p style={{ fontSize: 14 }}>
+              Passing checks are hidden.<br />
+              Total passes:{" "}
+              <strong style={{ color: "#16a34a" }}>
+                {qcSummary?.passes}
+              </strong>
             </p>
           ) : getActiveList().length === 0 ? (
             <p>No issues found.</p>
@@ -196,51 +193,57 @@ export default function TagMappingPage() {
                 onClick={() => handleIssueClick(issue)}
                 style={{
                   cursor: "pointer",
-                  padding: "10px 0",
+                  padding: "12px 0",
                   borderBottom: "1px solid #e5e7eb",
                 }}
               >
-                <strong>
-                  {issue.rule}
-                  {issue.count > 1 && (
-                    <span style={{ color: "#6b7280", marginLeft: 6 }}>
-                      ({issue.count})
-                    </span>
-                  )}
-                </strong>
-                <div>{issue.message}</div>
-                <div
-  style={{
-    fontSize: 15,
-    marginTop: 4,
-    color: "#2563eb",
-    fontFamily: "monospace",
-    wordBreak: "break-all",
-  }}
->
-  {issue.file}
-</div>
+                <strong style={{ fontSize: 15 }}>{issue.rule}</strong>
 
+                {issue.count > 1 && (
+                  <span style={{ color: "#6b7280", marginLeft: 6 }}>
+                    ({issue.count})
+                  </span>
+                )}
+
+                <div style={{ marginTop: 4 }}>{issue.message}</div>
+
+                <div
+                  style={{
+                    fontSize: 13,
+                    marginTop: 4,
+                    color: "#f97316",
+                    fontFamily: "monospace",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <FiFileText /> {issue.file}
+                </div>
               </div>
             ))
           )}
         </div>
 
-        {/* RIGHT */}
+        {/* RIGHT EDITOR */}
         <div
           style={{
             background: "#fff",
-            borderRadius: 12,
-            padding: 16,
+            borderRadius: 16,
+            padding: 18,
             height: 600,
             display: "flex",
             flexDirection: "column",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
           }}
         >
-          <h3>Source Editor (XHTML / OPF)</h3>
+          <h3 style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+            <FiFileText />
+            Source Editor
+          </h3>
 
           {!selectedHtml ? (
-            <p>Select an issue to load source</p>
+            <p>Select an issue to load its source.</p>
           ) : (
             <>
               <textarea
@@ -253,12 +256,11 @@ export default function TagMappingPage() {
                   fontFamily: "monospace",
                   fontSize: 13,
                   padding: 12,
-                  border: "1px solid #e5e7eb",
+                  border: "1px solid #d1d5db",
                   borderRadius: 8,
                   resize: "none",
-                  whiteSpace: "pre",
-                  background: "#fafafa",
-                  caretColor: "transparent",
+                  background: "#fff7ed",
+                  outline: "none",
                 }}
               />
 
@@ -268,15 +270,26 @@ export default function TagMappingPage() {
                 style={{
                   marginTop: 12,
                   padding: "10px 16px",
-                  background: "#2563eb",
+                  background: "linear-gradient(135deg,#f97316,#ea580c)",
                   color: "#fff",
                   border: "none",
-                  borderRadius: 8,
+                  borderRadius: 10,
                   cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
                   alignSelf: "flex-end",
                 }}
               >
-                {isSaving ? "Saving…" : "Save & Re-run QC"}
+                {isSaving ? (
+                  <>
+                    <FiLoader className="spin" /> Saving…
+                  </>
+                ) : (
+                  <>
+                    <FiSave /> Save & Re-run QC
+                  </>
+                )}
               </button>
             </>
           )}

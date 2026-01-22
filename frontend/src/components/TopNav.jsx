@@ -1,53 +1,65 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { FiBookOpen, FiTool, FiFileText } from "react-icons/fi";
 
+/* Main Navbar Container */
 const navStyle = {
   display: "flex",
   alignItems: "center",
-  padding: "0.5rem 1rem",
-  backgroundColor: "#1f2933",
+  padding: "12px 20px",
+  background: "#111827", 
   color: "#fff",
-  gap: "1rem",
-  fontSize: "0.95rem",
+  borderRadius: "10px",
+  gap: "1.5rem",
+  marginBottom: "20px",
+  boxShadow: "0 3px 8px rgba(0,0,0,0.25)",
 };
 
+/* Brand / Title */
+const brandStyle = {
+  fontWeight: 700,
+  fontSize: "1.05rem",
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  marginRight: "20px",
+};
+
+/* Normal Link */
 const linkStyle = {
   color: "#cbd2d9",
   textDecoration: "none",
-  padding: "0.35rem 0.75rem",
-  borderRadius: "4px",
+  padding: "8px 14px",
+  borderRadius: "8px",
+  fontSize: "0.95rem",
+  fontWeight: 500,
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  transition: "0.2s ease",
 };
 
+/* Link Hover */
+const hoverStyle = {
+  background: "rgba(255,255,255,0.08)",
+  color: "#fff",
+};
+
+/* Active Link */
 const activeStyle = {
   ...linkStyle,
-  backgroundColor: "#3e4c59",
-  color: "#f9fafb",
+  background: "linear-gradient(135deg,#f97316,#ea580c)",
+  color: "#fff",
+  boxShadow: "0 4px 10px rgba(249,115,22,0.4)",
 };
 
-function TopNav() {
+export default function TopNav() {
   return (
     <header style={navStyle}>
-      <div style={{ fontWeight: "600" }}>Accessible EPUB Convertor</div>
-      <NavLink
-        to="/convert"
-        style={({ isActive }) => (isActive ? activeStyle : linkStyle)}
-      >
-        Convert
-      </NavLink>
-      {/* <NavLink
-        to="/mapping"
-        style={({ isActive }) => (isActive ? activeStyle : linkStyle)}
-      >
-        Tag Mapping
-      </NavLink> */}
-      <NavLink
-        to="/qc"
-        style={({ isActive }) => (isActive ? activeStyle : linkStyle)}
-      >
-        QC
-      </NavLink>
+      {/* Brand */}
+      <div style={brandStyle}>
+        <FiBookOpen size={25} color="#f97316" />
+        Accessible EPUB Converter
+      </div>
     </header>
   );
 }
-
-export default TopNav;

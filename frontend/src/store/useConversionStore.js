@@ -1,11 +1,14 @@
 import { create } from "zustand";
 
 export const useConversionStore = create((set, get) => ({
-   /* ---------- EPUB ---------- */
+  /* ---------- EPUB ---------- */
   epubFile: null,
   bookId: null,
 
-    /* ---------- QC ---------- */
+  /* ---------- Accessible EPUB Output ---------- */
+  accessibleEpubBlob: null,   // 🔥 IMPORTANT (was missing)
+
+  /* ---------- QC ---------- */
   qcStatus: "idle", // idle | running | done | error
   qcSummary: {
     errors: 0,
@@ -13,9 +16,7 @@ export const useConversionStore = create((set, get) => ({
     passes: 0,
   },
 
-  /* ---------- Convert / EPUB ---------- */
-  epubFile: null,
-  bookId: null,
+  /* ---------- Convert / HTML Viewer ---------- */
   accessibleHtml: "",
 
   /* ---------- TOC ---------- */
@@ -29,7 +30,12 @@ export const useConversionStore = create((set, get) => ({
   tagMappings: {},
 
   /* ---------- Setters ---------- */
-  setEpubFile: (file) => set({ epubFile: file }),
+  setEpubFile: (file) =>
+    set({
+      epubFile: file,
+      accessibleEpubBlob: null,   // reset old output
+    }),
+
   setBookId: (id) => set({ bookId: id }),
   setAccessibleHtml: (html) => set({ accessibleHtml: html }),
   setEpubToc: (toc) => set({ epubToc: toc }),
@@ -38,8 +44,13 @@ export const useConversionStore = create((set, get) => ({
   setSelectedPageHtml: (html) => set({ selectedPageHtml: html }),
   setSelectedPageTags: (tags) => set({ selectedPageTags: tags }),
 
+  /* ---------- Store the CONVERTED EPUB ---------- */
+  setAccessibleEpubBlob: (blob) =>
+    set({
+      accessibleEpubBlob: blob, // 🔥 REQUIRED FOR RERUN QC
+    }),
 
-/* ---------- AUTO QC ---------- */
+  /* ---------- AUTO QC on upload ---------- */
   autoRunQC: async (epubFile) => {
     if (!epubFile) return;
 
@@ -77,6 +88,7 @@ export const useConversionStore = create((set, get) => ({
     }
   },
 
+  /* ---------- Tag Mapping ---------- */
   setTagMapping: (href, tag, value) =>
     set((state) => ({
       tagMappings: {
@@ -88,6 +100,7 @@ export const useConversionStore = create((set, get) => ({
       },
     })),
 
+  /* ---------- Reset ---------- */
   resetAfterConvert: () =>
     set({
       selectedTocItem: null,

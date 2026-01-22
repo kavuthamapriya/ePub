@@ -1,47 +1,62 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useConversionStore } from "../../store/useConversionStore";
 import { useQCStore } from "../../store/useQCStore";
+import {
+  FiAlertTriangle,
+  FiInfo,
+  FiCheckCircle,
+  FiRefreshCcw,
+} from "react-icons/fi";
 
 /* --------------------------------
-   Small stat box (clickable)
+   SummaryBox Component
 --------------------------------- */
-function SummaryBox({ label, value, bg, color, onClick }) {
+function SummaryBox({ label, value, bg, icon, color, onClick }) {
   return (
     <div
       onClick={onClick}
       style={{
         background: bg,
-        borderRadius: 10,
-        padding: "10px 16px",
-        minWidth: 110,
-        textAlign: "center",
+        borderRadius: 12,
+        padding: "12px 16px",
+        minWidth: 130,
         cursor: onClick ? "pointer" : "default",
-        transition: "transform 0.15s ease",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
+        transition: "transform 0.18s ease",
       }}
       onMouseEnter={(e) => {
-        if (onClick) e.currentTarget.style.transform = "scale(1.05)";
+        if (onClick) e.currentTarget.style.transform = "scale(1.07)";
       }}
       onMouseLeave={(e) => {
         if (onClick) e.currentTarget.style.transform = "scale(1)";
       }}
     >
-      <div style={{ fontSize: 20, fontWeight: 700, color }}>
-        {value ?? 0}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {icon}
+        <span style={{ fontSize: 20, fontWeight: 700, color }}>
+          {value ?? 0}
+        </span>
       </div>
-      <div style={{ fontSize: 12, color: "#374151" }}>{label}</div>
+
+      <div style={{ fontSize: 13, color: "#374151", marginTop: 2 }}>
+        {label}
+      </div>
     </div>
   );
 }
 
 /* --------------------------------
-   QC Summary Bar (FINAL)
+   QC Summary Bar (NEW ORANGE UI)
 --------------------------------- */
 export default function QCSummaryBar({
   onErrorsClick,
   onWarningsClick,
   onPassesClick,
 }) {
-  const { epubFile } = useConversionStore();
+  const { epubFile, accessibleEpubBlob } = useConversionStore();
 
   const {
     qcStatus,
@@ -51,7 +66,7 @@ export default function QCSummaryBar({
     setQcIssues,
   } = useQCStore();
 
-  // Prevent duplicate auto QC for same file
+  const [rerunMessage, setRerunMessage] = useState("");
   const lastRunRef = useRef(null);
 
   /* --------------------------------
@@ -63,49 +78,53 @@ export default function QCSummaryBar({
 
     lastRunRef.current = epubFile;
 
-    async function runQcAutomatically() {
+    async function runQc() {
       try {
         setQcStatus("running");
         setQcIssues({ errors: [], warnings: [], passes: [] });
         setQcSummary({ errors: 0, warnings: 0, passes: 0 });
 
-        const form = new FormData();
-        form.append("epub_file", epubFile);
+        const fd = new FormData();
+        fd.append("epub_file", epubFile);
 
         const res = await fetch("http://localhost:8000/api/qc/epub", {
           method: "POST",
-          body: form,
+          body: fd,
         });
 
         if (!res.ok) throw new Error("QC failed");
-
         const data = await res.json();
 
         setQcIssues(data.issues);
         setQcSummary(data.summary);
 
-        // 🔥 store report for QCPage
         if (data.report_zip_b64) {
           useQCStore.setState({ reportZipB64: data.report_zip_b64 });
         }
 
         setQcStatus("done");
       } catch (err) {
-        console.error("Auto QC failed:", err);
+        console.error(err);
         setQcStatus("error");
       }
     }
 
-    runQcAutomatically();
-  }, [epubFile, setQcIssues, setQcStatus, setQcSummary]);
+    runQc();
+  }, [epubFile]);
 
   /* --------------------------------
-     🔁 MANUAL RE-RUN (NO REUPLOAD)
+     MANUAL RE-RUN
   --------------------------------- */
   async function handleRerunQC() {
-    try {
-      setQcStatus("running");
+    if (!accessibleEpubBlob) {
+      setRerunMessage("⚠️ Convert EPUB to Accessible EPUB before re-running.");
+      return;
+    }
 
+    setRerunMessage("");
+    setQcStatus("running");
+
+    try {
       const res = await fetch("http://localhost:8000/api/qc/rerun", {
         method: "POST",
       });
@@ -113,18 +132,16 @@ export default function QCSummaryBar({
       if (!res.ok) throw new Error("Re-run failed");
 
       const data = await res.json();
-
       setQcIssues(data.issues);
       setQcSummary(data.summary);
 
-      // 🔥 IMPORTANT: push NEW report to QCPage
       if (data.report_zip_b64) {
         useQCStore.setState({ reportZipB64: data.report_zip_b64 });
       }
 
       setQcStatus("done");
     } catch (err) {
-      console.error("Re-run QC failed:", err);
+      console.error(err);
       setQcStatus("error");
     }
   }
@@ -132,19 +149,12 @@ export default function QCSummaryBar({
   if (!epubFile) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {/* LOADING STATE */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      
+      {/* LOADING BAR */}
       {qcStatus === "running" && (
-        <div style={{ width: "100%" }}>
-          <div
-            style={{
-              fontSize: 12,
-              color: "#374151",
-              marginBottom: 6,
-            }}
-          >
-            Running accessibility checks…
-          </div>
+        <div>
+          <div style={{ fontSize: 13, marginBottom: 6 }}>Running accessibility checks…</div>
 
           <div
             style={{
@@ -156,51 +166,72 @@ export default function QCSummaryBar({
               position: "relative",
             }}
           >
-            <div className="qc-shimmer-bar" />
+            <div className="qc-shimmer-bar"></div>
           </div>
         </div>
       )}
 
-      {/* RESULT STATE */}
+      {/* RESULTS */}
       {qcStatus !== "running" && (
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          
+          {/* Errors */}
           <SummaryBox
             label="Errors"
             value={qcSummary.errors}
             bg="#fee2e2"
             color="#b91c1c"
             onClick={onErrorsClick}
+            icon={<FiAlertTriangle size={18} color="#dc2626" />}
           />
+
+          {/* Warnings */}
           <SummaryBox
             label="Warnings"
             value={qcSummary.warnings}
             bg="#fef3c7"
             color="#92400e"
             onClick={onWarningsClick}
+            icon={<FiInfo size={18} color="#f59e0b" />}
           />
+
+          {/* Passes */}
           <SummaryBox
             label="Passes"
             value={qcSummary.passes}
             bg="#dcfce7"
             color="#166534"
             onClick={onPassesClick}
+            icon={<FiCheckCircle size={18} color="#16a34a" />}
           />
 
-          <button
-            onClick={handleRerunQC}
-            style={{
-              marginLeft: "auto",
-              padding: "8px 14px",
-              background: "#2563eb",
-              color: "#fff",
-              borderRadius: 8,
-              border: "none",
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
-          >
-            Re-run DAISY
-          </button>
+          {/* Re-run Button */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <button
+              onClick={handleRerunQC}
+              style={{
+                padding: "9px 16px",
+                borderRadius: 10,
+                fontWeight: 700,
+                border: "none",
+                cursor: "pointer",
+                color: "#fff",
+                background: "linear-gradient(135deg,#f97316,#ea580c)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <FiRefreshCcw size={16} />
+              Re-run DAISY
+            </button>
+
+            {rerunMessage && (
+              <div style={{ marginTop: 6, fontSize: 13, color: "#b91c1c" }}>
+                {rerunMessage}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -209,21 +240,20 @@ export default function QCSummaryBar({
         {`
           .qc-shimmer-bar {
             position: absolute;
-            height: 100%;
+            inset: 0;
             width: 40%;
             background: linear-gradient(
               90deg,
-              #2563eb 0%,
-              #60a5fa 50%,
-              #2563eb 100%
+              #ff7a18 0%,
+              #ffb566 50%,
+              #ff7a18 100%
             );
-            animation: qc-shimmer 1.3s infinite ease-in-out;
-            border-radius: 999px;
+            animation: qcShimmer 1.2s ease-in-out infinite;
           }
 
-          @keyframes qc-shimmer {
-            0% { left: -40%; }
-            100% { left: 100%; }
+          @keyframes qcShimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(250%); }
           }
         `}
       </style>
