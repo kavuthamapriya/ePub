@@ -1,26 +1,25 @@
 import React, { useState, useRef, useEffect } from "react";
-import {
-  FiAlertTriangle,
-  FiFileText,
-  FiCheckCircle,
-  FiSave,
-  FiLoader,
-} from "react-icons/fi";
+import { FiAlertTriangle, FiInfo, FiFileText, FiSave } from "react-icons/fi";
 import { useQCStore } from "../../store/useQCStore";
-import QCSummaryBar from "../qc/QCSummaryBar";
+import QCSummaryBar from "../qc/QCSummaryBar.jsx";
 
-/* --------------------------------
-   Group repeated rules
---------------------------------- */
+/* Glassy card */
+const card = {
+  background: "rgba(255,255,255,0.7)",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)",
+  padding: "20px",
+  borderRadius: "16px",
+  boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+  border: "1px solid rgba(255,255,255,0.5)",
+};
+
 function groupIssuesByRule(issues = []) {
   const map = {};
   issues.forEach((issue) => {
-    const key = issue.rule || "Unknown rule";
-    if (!map[key]) {
-      map[key] = { ...issue, count: 1 };
-    } else {
-      map[key].count += 1;
-    }
+    const key = issue.rule || "Unknown";
+    if (!map[key]) map[key] = { ...issue, count: 1 };
+    else map[key].count++;
   });
   return Object.values(map);
 }
@@ -42,30 +41,30 @@ export default function TagMappingPage() {
 
   const textareaRef = useRef(null);
 
-  /* --------------------------------
-     Get current list
-  --------------------------------- */
+  /* Active Issue List */
   const getActiveList = () => {
-    let list = [];
-    if (activeType === "errors") list = qcIssues.errors || [];
-    if (activeType === "warnings") list = qcIssues.warnings || [];
     if (activeType === "passes") return [];
+    const list =
+      activeType === "errors"
+        ? qcIssues.errors
+        : activeType === "warnings"
+        ? qcIssues.warnings
+        : [];
     return groupIssuesByRule(list);
   };
 
-  /* --------------------------------
-     Load HTML for issue
-  --------------------------------- */
-  const handleIssueClick = async (issue) => {
+  /* Load document */
+  async function handleIssueClick(issue) {
     setSelectedIssue(issue);
     setSelectedHtml("Loading…");
 
-    const isOPF =
+    const docPath =
       !issue.file ||
       issue.file.toLowerCase().endsWith(".opf") ||
-      issue.file.toLowerCase().includes("package");
+      issue.file.includes("package")
+        ? "content.opf"
+        : issue.file;
 
-    const docPath = isOPF ? "content.opf" : issue.file;
     setLastEditedFile(docPath);
 
     try {
@@ -75,226 +74,213 @@ export default function TagMappingPage() {
         body: JSON.stringify({ doc_path: docPath }),
       });
 
-      if (!res.ok) throw new Error("Document not found");
-
       const data = await res.json();
       setSelectedHtml(data.html || "");
     } catch {
       setSelectedHtml("Failed to load document");
     }
-  };
+  }
 
-  /* --------------------------------
-     Highlight line
-  --------------------------------- */
+  /* Highlight error line */
   useEffect(() => {
-    if (!selectedIssue || !selectedIssue.line) return;
-    if (!selectedHtml || !textareaRef.current) return;
+    if (!selectedIssue || !selectedIssue.line || !selectedHtml) return;
 
     const textarea = textareaRef.current;
     const lines = selectedHtml.split("\n");
-    const index = selectedIssue.line - 1;
+    const idx = selectedIssue.line - 1;
 
-    if (!lines[index]) return;
+    if (!lines[idx]) return;
 
     let start = 0;
-    for (let i = 0; i < index; i++) start += lines[i].length + 1;
-
-    const end = start + lines[index].length;
+    for (let i = 0; i < idx; i++) start += lines[i].length + 1;
+    const end = start + lines[idx].length;
 
     textarea.focus();
     textarea.setSelectionRange(start, end);
-    textarea.scrollTop = index * 20;
+    textarea.scrollTop = idx * 20;
   }, [selectedIssue, selectedHtml]);
 
-  /* --------------------------------
-     Save & Rerun QC
-  --------------------------------- */
-  const handleSaveAndRerun = async () => {
+  /* Save changes */
+  async function handleSave() {
     if (!lastEditedFile) return;
 
+    setIsSaving(true);
+    const fd = new FormData();
+    fd.append("doc_path", lastEditedFile);
+    fd.append("html", selectedHtml);
+
     try {
-      setIsSaving(true);
-
-      const form = new FormData();
-      form.append("doc_path", lastEditedFile);
-      form.append("html", selectedHtml);
-
       const res = await fetch("http://localhost:8000/api/qc/fix", {
         method: "POST",
-        body: form,
+        body: fd,
       });
-
-      if (!res.ok) throw new Error("Save failed");
 
       const data = await res.json();
 
-      alert("Saved & QC re-run successfully ✅");
-
+      alert("Saved & QC Re-run Successfully!");
       useQCStore.getState().setQcSummary(data.summary);
       useQCStore.getState().setQcIssues(data.issues);
     } catch (err) {
-      console.error(err);
       alert("Failed to save ❌");
-    } finally {
-      setIsSaving(false);
     }
-  };
+
+    setIsSaving(false);
+  }
 
   return (
-    <div style={{ padding: 22 }}>
-      <QCSummaryBar
-        onErrorsClick={() => setActiveType("errors")}
-        onWarningsClick={() => setActiveType("warnings")}
-        onPassesClick={() => setActiveType("passes")}
-      />
+  <div>
+    <QCSummaryBar
+      onErrorsClick={() => setActiveType("errors")}
+      onWarningsClick={() => setActiveType("warnings")}
+      onPassesClick={() => setActiveType("passes")}
+    />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 20,
-          marginTop: 20,
-        }}
-      >
-        {/* LEFT LIST */}
-        <div
+    <div
+      style={{
+        marginTop: "20px",
+        display: "grid",
+        gridTemplateColumns: "60% 40%", 
+      }}
+    >
+      {/* LEFT PANE */}
+      <div style={{ ...card, height: "85vh", overflowY: "auto" }}>  
+        <h3
           style={{
-            background: "#fff",
-            borderRadius: 16,
-            padding: 18,
-            height: 600,
-            overflowY: "auto",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+            margin: 0,
+            paddingBottom: "10px",
+            borderBottom: "1px solid #e5e7eb",
           }}
         >
-          <h3 style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            {activeType === "errors" && <FiAlertTriangle color="#dc2626" />}
-            {activeType === "warnings" && <FiAlertTriangle color="#f59e0b" />}
-            {activeType === "passes" && <FiCheckCircle color="#16a34a" />}
-            {activeType.charAt(0).toUpperCase() + activeType.slice(1)}
-          </h3>
+          {activeType === "errors"
+            ? "Errors"
+            : activeType === "warnings"
+            ? "Warnings"
+            : "Passes"}
+        </h3>
 
-          {/* Passes */}
-          {activeType === "passes" ? (
-            <p style={{ fontSize: 14 }}>
-              Passing checks are hidden.<br />
-              Total passes:{" "}
-              <strong style={{ color: "#16a34a" }}>
-                {qcSummary?.passes}
-              </strong>
-            </p>
-          ) : getActiveList().length === 0 ? (
-            <p>No issues found.</p>
-          ) : (
-            getActiveList().map((issue, i) => (
-              <div
-                key={i}
-                onClick={() => handleIssueClick(issue)}
-                style={{
-                  cursor: "pointer",
-                  padding: "12px 0",
-                  borderBottom: "1px solid #e5e7eb",
-                }}
-              >
-                <strong style={{ fontSize: 15 }}>{issue.rule}</strong>
-
+        {activeType === "passes" ? (
+          <p style={{ marginTop: "10px" }}>
+            Total Passes: <strong>{qcSummary?.passes}</strong>
+          </p>
+        ) : getActiveList().length === 0 ? (
+          <p>No issues found.</p>
+        ) : (
+          getActiveList().map((issue, i) => (
+            <div
+              key={i}
+              onClick={() => handleIssueClick(issue)}
+              style={{
+                cursor: "pointer",
+                padding: "12px",
+                borderRadius: "10px",
+                marginBottom: "8px",
+                borderLeft:
+                  issue.rule === "error"
+                    ? "4px solid #ef4444"
+                    : "4px solid #2563eb",
+                background: "rgba(255,255,255,0.6)",
+                transition: "0.2s",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "rgba(255,255,255,0.9)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "rgba(255,255,255,0.6)")
+              }
+            >
+              <strong style={{ color: "#2563eb", fontSize: "15px" }}>
+                {issue.rule}
                 {issue.count > 1 && (
-                  <span style={{ color: "#6b7280", marginLeft: 6 }}>
-                    ({issue.count})
+                  <span style={{ color: "#6b7280" }}>
+                    {"  (" + issue.count + ")"}
                   </span>
                 )}
-
-                <div style={{ marginTop: 4 }}>{issue.message}</div>
-
-                <div
-                  style={{
-                    fontSize: 13,
-                    marginTop: 4,
-                    color: "#f97316",
-                    fontFamily: "monospace",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <FiFileText /> {issue.file}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* RIGHT EDITOR */}
-        <div
-          style={{
-            background: "#fff",
-            borderRadius: 16,
-            padding: 18,
-            height: 600,
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
-          }}
-        >
-          <h3 style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-            <FiFileText />
-            Source Editor
-          </h3>
-
-          {!selectedHtml ? (
-            <p>Select an issue to load its source.</p>
-          ) : (
-            <>
-              <textarea
-                ref={textareaRef}
-                value={selectedHtml}
-                onChange={(e) => setSelectedHtml(e.target.value)}
+              </strong>
+              <div>{issue.message}</div>
+              <div
                 style={{
-                  width: "100%",
-                  height: "100%",
+                  fontSize: "13px",
+                  marginTop: "4px",
+                  color: "#2563eb",
                   fontFamily: "monospace",
-                  fontSize: 13,
-                  padding: 12,
-                  border: "1px solid #d1d5db",
-                  borderRadius: 8,
-                  resize: "none",
-                  background: "#fff7ed",
-                  outline: "none",
-                }}
-              />
-
-              <button
-                onClick={handleSaveAndRerun}
-                disabled={isSaving}
-                style={{
-                  marginTop: 12,
-                  padding: "10px 16px",
-                  background: "linear-gradient(135deg,#f97316,#ea580c)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 10,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  alignSelf: "flex-end",
                 }}
               >
-                {isSaving ? (
-                  <>
-                    <FiLoader className="spin" /> Saving…
-                  </>
-                ) : (
-                  <>
-                    <FiSave /> Save & Re-run QC
-                  </>
-                )}
+                {issue.file}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* RIGHT PANE (EDITOR) */}
+      <div
+        style={{
+          ...card,
+          height: "85vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>Source Editor</h3>
+
+        {!selectedHtml ? (
+          <p style={{ marginTop: "10px" }}>Select an issue to load source</p>
+        ) : (
+          <>
+            <textarea
+              ref={textareaRef}
+              value={selectedHtml}
+              onChange={(e) => setSelectedHtml(e.target.value)}
+              style={{
+                flex: 1,
+                fontFamily: `"Fira Code", monospace`,
+                fontSize: "14px",
+                border: "1px solid #cbd5e1",
+                background: "#f8fafc",
+                borderRadius: "12px",
+                padding: "14px",
+                resize: "none",
+                lineHeight: "1.5",
+              }}
+            />
+
+            {/* Sticky Save Bar */}
+            <div
+              style={{
+                marginTop: "12px",
+                padding: "10px",
+                borderTop: "1px solid #e5e7eb",
+                display: "flex",
+                justifyContent: "flex-end",
+                background: "rgba(255,255,255,0.85)",
+                backdropFilter: "blur(10px)",
+                borderRadius: "12px",
+              }}
+            >
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                style={{
+                  padding: "10px 18px",
+                  background: "linear-gradient(135deg,#2563eb,#1d4ed8)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "12px",
+                  display: "flex",
+                  gap: "8px",
+                  alignItems: "center",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                <FiSave />
+                {isSaving ? "Saving…" : "Save & Re-run"}
               </button>
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
-  );
+  </div>
+);
 }

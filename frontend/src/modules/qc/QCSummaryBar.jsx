@@ -1,84 +1,66 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useConversionStore } from "../../store/useConversionStore";
-import { useQCStore } from "../../store/useQCStore";
 import {
   FiAlertTriangle,
   FiInfo,
   FiCheckCircle,
   FiRefreshCcw,
 } from "react-icons/fi";
+import { useConversionStore } from "../../store/useConversionStore";
+import { useQCStore } from "../../store/useQCStore";
 
-/* --------------------------------
-   SummaryBox Component
---------------------------------- */
-function SummaryBox({ label, value, bg, icon, color, onClick }) {
+/* Summary Box */
+function SummaryBox({ label, value, icon, color, bg, onClick }) {
   return (
     <div
       onClick={onClick}
       style={{
+        padding: "14px 16px",
+        borderRadius: "14px",
+        cursor: "pointer",
+        minWidth: "140px",
         background: bg,
-        borderRadius: 12,
-        padding: "12px 16px",
-        minWidth: 130,
-        cursor: onClick ? "pointer" : "default",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
-        transition: "transform 0.18s ease",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+        transition: "0.2s",
       }}
-      onMouseEnter={(e) => {
-        if (onClick) e.currentTarget.style.transform = "scale(1.07)";
-      }}
-      onMouseLeave={(e) => {
-        if (onClick) e.currentTarget.style.transform = "scale(1)";
-      }}
+      onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.04)")}
+      onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {icon}
-        <span style={{ fontSize: 20, fontWeight: 700, color }}>
-          {value ?? 0}
+        <span style={{ fontWeight: 700, fontSize: "20px", color }}>
+          {value}
         </span>
       </div>
-
-      <div style={{ fontSize: 13, color: "#374151", marginTop: 2 }}>
+      <span style={{ fontSize: "13px", marginTop: "4px", color: "#334155" }}>
         {label}
-      </div>
+      </span>
     </div>
   );
 }
 
-/* --------------------------------
-   QC Summary Bar (NEW ORANGE UI)
---------------------------------- */
 export default function QCSummaryBar({
   onErrorsClick,
   onWarningsClick,
   onPassesClick,
 }) {
   const { epubFile, accessibleEpubBlob } = useConversionStore();
-
-  const {
-    qcStatus,
-    qcSummary,
-    setQcStatus,
-    setQcSummary,
-    setQcIssues,
-  } = useQCStore();
+  const { qcStatus, qcSummary, setQcStatus, setQcSummary, setQcIssues } =
+    useQCStore();
 
   const [rerunMessage, setRerunMessage] = useState("");
   const lastRunRef = useRef(null);
 
-  /* --------------------------------
-     AUTO QC on EPUB upload
-  --------------------------------- */
+  /* Auto QC on upload */
   useEffect(() => {
     if (!epubFile) return;
     if (lastRunRef.current === epubFile) return;
 
     lastRunRef.current = epubFile;
 
-    async function runQc() {
+    async function runQC() {
       try {
         setQcStatus("running");
         setQcIssues({ errors: [], warnings: [], passes: [] });
@@ -93,8 +75,8 @@ export default function QCSummaryBar({
         });
 
         if (!res.ok) throw new Error("QC failed");
-        const data = await res.json();
 
+        const data = await res.json();
         setQcIssues(data.issues);
         setQcSummary(data.summary);
 
@@ -103,21 +85,18 @@ export default function QCSummaryBar({
         }
 
         setQcStatus("done");
-      } catch (err) {
-        console.error(err);
+      } catch {
         setQcStatus("error");
       }
     }
 
-    runQc();
+    runQC();
   }, [epubFile]);
 
-  /* --------------------------------
-     MANUAL RE-RUN
-  --------------------------------- */
-  async function handleRerunQC() {
+  /* Re-run QC */
+  async function rerunQC() {
     if (!accessibleEpubBlob) {
-      setRerunMessage("⚠️ Convert EPUB to Accessible EPUB before re-running.");
+      setRerunMessage("Convert to Accessible EPUB first.");
       return;
     }
 
@@ -128,8 +107,7 @@ export default function QCSummaryBar({
       const res = await fetch("http://localhost:8000/api/qc/rerun", {
         method: "POST",
       });
-
-      if (!res.ok) throw new Error("Re-run failed");
+      if (!res.ok) throw new Error("Failed");
 
       const data = await res.json();
       setQcIssues(data.issues);
@@ -141,7 +119,6 @@ export default function QCSummaryBar({
 
       setQcStatus("done");
     } catch (err) {
-      console.error(err);
       setQcStatus("error");
     }
   }
@@ -149,114 +126,100 @@ export default function QCSummaryBar({
   if (!epubFile) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      
-      {/* LOADING BAR */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {qcStatus === "running" && (
         <div>
-          <div style={{ fontSize: 13, marginBottom: 6 }}>Running accessibility checks…</div>
-
+          <div style={{ fontSize: "13px", marginBottom: "6px" }}>
+            Running accessibility tests…
+          </div>
           <div
             style={{
-              height: 6,
+              height: "6px",
               width: "100%",
-              background: "#e5e7eb",
-              borderRadius: 999,
+              background: "#e2e8f0",
+              borderRadius: "999px",
               overflow: "hidden",
-              position: "relative",
             }}
           >
-            <div className="qc-shimmer-bar"></div>
+            <div className="qc-shimmer" />
           </div>
+
+          <style>
+            {`
+            .qc-shimmer {
+              height: 100%;
+              width: 40%;
+              background: linear-gradient(90deg,#2563eb,#93c5fd,#2563eb);
+              animation: qcshimmer 1.3s infinite;
+            }
+            @keyframes qcshimmer {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(250%); }
+            }
+          `}
+          </style>
         </div>
       )}
 
-      {/* RESULTS */}
-      {qcStatus !== "running" && (
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          
-          {/* Errors */}
-          <SummaryBox
-            label="Errors"
-            value={qcSummary.errors}
-            bg="#fee2e2"
-            color="#b91c1c"
-            onClick={onErrorsClick}
-            icon={<FiAlertTriangle size={18} color="#dc2626" />}
-          />
+      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+        {/* Errors */}
+        <SummaryBox
+          label="Errors"
+          value={qcSummary.errors}
+          bg="#fee2e2"
+          color="#b91c1c"
+          icon={<FiAlertTriangle size={20} color="#dc2626" />}
+          onClick={onErrorsClick}
+        />
 
-          {/* Warnings */}
-          <SummaryBox
-            label="Warnings"
-            value={qcSummary.warnings}
-            bg="#fef3c7"
-            color="#92400e"
-            onClick={onWarningsClick}
-            icon={<FiInfo size={18} color="#f59e0b" />}
-          />
+        {/* Warnings */}
+        <SummaryBox
+          label="Warnings"
+          value={qcSummary.warnings}
+          bg="#eff6ff"
+          color="#f1560e"
+          icon={<FiInfo size={20} color="#f1560e" />}
+          onClick={onWarningsClick}
+        />
 
-          {/* Passes */}
-          <SummaryBox
-            label="Passes"
-            value={qcSummary.passes}
-            bg="#dcfce7"
-            color="#166534"
-            onClick={onPassesClick}
-            icon={<FiCheckCircle size={18} color="#16a34a" />}
-          />
+        {/* Passes */}
+        <SummaryBox
+          label="Passes"
+          value={qcSummary.passes}
+          bg="#dcfce7"
+          color="#166534"
+          icon={<FiCheckCircle size={20} color="#16a34a" />}
+          onClick={onPassesClick}
+        />
 
-          {/* Re-run Button */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <button
-              onClick={handleRerunQC}
-              style={{
-                padding: "9px 16px",
-                borderRadius: 10,
-                fontWeight: 700,
-                border: "none",
-                cursor: "pointer",
-                color: "#fff",
-                background: "linear-gradient(135deg,#f97316,#ea580c)",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <FiRefreshCcw size={16} />
-              Re-run DAISY
-            </button>
+        {/* Rerun Button */}
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <button
+            onClick={rerunQC}
+            style={{
+              padding: "10px 16px",
+              borderRadius: "12px",
+              border: "none",
+              background: "linear-gradient(135deg,#f97316,#ea580c)",
+              color: "#fff",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              gap: "8px",
+              alignItems: "center",
+            }}
+          >
+            <FiRefreshCcw />
+            Re-run QC
+          </button>
 
-            {rerunMessage && (
-              <div style={{ marginTop: 6, fontSize: 13, color: "#b91c1c" }}>
-                {rerunMessage}
-              </div>
-            )}
-          </div>
+          {rerunMessage && (
+            <span style={{ marginTop: "6px", color: "#b91c1c" }}>
+              {rerunMessage}
+            </span>
+          )}
         </div>
-      )}
-
-      {/* SHIMMER CSS */}
-      <style>
-        {`
-          .qc-shimmer-bar {
-            position: absolute;
-            inset: 0;
-            width: 40%;
-            background: linear-gradient(
-              90deg,
-              #ff7a18 0%,
-              #ffb566 50%,
-              #ff7a18 100%
-            );
-            animation: qcShimmer 1.2s ease-in-out infinite;
-          }
-
-          @keyframes qcShimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(250%); }
-          }
-        `}
-      </style>
+      </div>
     </div>
   );
 }

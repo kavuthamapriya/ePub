@@ -1,41 +1,105 @@
-import React from "react";
-import ConvertPage from "./modules/convert/ConvertPage";
-import EpubWorkspace from "./modules/epub/EpubWorkspace";
-import QCPage from "./modules/qc/QCPage";
+import React, { useEffect, useRef } from "react";
+import { Routes, Route, useLocation } from "react-router-dom";
+
 import TopNav from "./components/TopNav";
 
-function App() {
+import ConvertPage from "./modules/convert/ConvertPage";
+import TagMappingPage from "./modules/mapping/TagMappingPage";
+import QCPage from "./modules/qc/QCPage";
+
+
+const pageWrapper = {
+  background: "linear-gradient(180deg,#f9fafb,#f3f4f6)",
+  minHeight: "100vh",
+  paddingTop: "100px", 
+  paddingLeft: "20px",
+  paddingRight: "20px",
+  paddingBottom: "40px",
+};
+
+// Smooth selector
+function scrollTo(ref) {
+  if (ref.current) {
+    ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+export default function App() {
+  const location = useLocation();
+
+  // Refs for sections
+  const convertRef = useRef(null);
+  const qcRef = useRef(null);
+  const reportRef = useRef(null);
+
+  // Route scroll logic
+  useEffect(() => {
+    if (location.pathname === "/convert") scrollTo(convertRef);
+    if (location.pathname === "/qc") scrollTo(qcRef);
+    if (location.pathname === "/report") scrollTo(reportRef);
+  }, [location.pathname]);
+
   return (
-    <div
-      style={{
-        backgroundColor: "#f3f4f6",
-        minHeight: "100vh",
-        padding: "16px",
-      }}
-    >
-      {/* Global Top Navbar */}
+    <div style={pageWrapper}>
       <TopNav />
 
-      {/* Convert Section */}
-      <section style={{ marginTop: "24px", marginBottom: "24px" }}>
-        <h2 style={{ margin: "0 0 8px 0", color: "#111827" }}>Convert</h2>
+      <div ref={convertRef} style={{ marginTop: "40px" }}>
+        <h1
+          style={{
+            background: "linear-gradient(135deg,#f97316,#ea580c)",
+            WebkitBackgroundClip: "text",
+            color: "transparent",
+            fontSize: "2rem",
+            fontWeight: 800,
+            marginBottom: "20px",
+          }}
+        >
+          Convert EPUB
+        </h1>
+
         <ConvertPage />
-      </section>
+      </div>
 
-      {/* Tag Mapping */}
-      <section style={{ marginBottom: "24px" }}>
-        <h2 style={{ margin: "0 0 8px 0", color: "#111827" }}>
-          QC Validation
-        </h2>
-        <EpubWorkspace />
-      </section>
+      <div ref={qcRef} style={{ marginTop: "80px" }}>
+        <h1
+          style={{
+            background: "linear-gradient(135deg,#f97316,#ea580c)",
+            WebkitBackgroundClip: "text",
+            color: "transparent",
+            fontSize: "2rem",
+            fontWeight: 800,
+            marginBottom: "20px",
+          }}
+        >
+          QC Validation 
+        </h1>
 
-      {/* QC */}
-      <section>
+        <TagMappingPage />
+      </div>
+
+      <div ref={reportRef} style={{ marginTop: "80px" }}>
+        <h1
+          style={{
+            background: "linear-gradient(135deg,#f97316,#ea580c)",
+            WebkitBackgroundClip: "text",
+            color: "transparent",
+            fontSize: "2rem",
+            fontWeight: 800,
+            marginBottom: "20px",
+          }}
+        >
+          DAISY Ace Report
+        </h1>
+
         <QCPage />
-      </section>
+      </div>
+
+      {/* Hidden router (needed for navigation) */}
+      <Routes>
+        <Route path="/convert" />
+        <Route path="/qc" />
+        <Route path="/report" />
+      </Routes>
     </div>
   );
 }
-
-export default App;
