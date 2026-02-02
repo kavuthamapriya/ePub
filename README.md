@@ -11,3 +11,5 @@ npm install @daisy/ace --save-dev
 npm install winston@3.3.3 --save-dev
 npm install epubjs
 npm install react-icons
+
+pip install pymysql sqlalchemy

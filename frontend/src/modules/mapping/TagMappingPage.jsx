@@ -139,7 +139,8 @@ export default function TagMappingPage() {
       style={{
         marginTop: "20px",
         display: "grid",
-        gridTemplateColumns: "60% 40%", 
+        gridTemplateColumns: "1fr 1fr", 
+        gap: "20px",
       }}
     >
       {/* LEFT PANE */}

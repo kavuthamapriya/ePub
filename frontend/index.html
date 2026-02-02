@@ -5,21 +5,11 @@
     <title>Accessible EPUB Converter</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   </head>
+
   <body>
     <div id="root"></div>
- 
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <!-- EPUB.js from CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
 
-    <!-- PDF.js from CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-      window.pdfjsLib = window["pdfjs-dist/build/pdf"];
-      // Worker is embedded in pdf.min.js CDN build
-    </script>
-
-
-    <script type="module" src="/src/main.jsx"></script>
+    <!-- ENTRY POINT -->
+    <script type="module" src="./src/main.jsx"></script>
   </body>
 </html>

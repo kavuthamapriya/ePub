@@ -1,8 +1,15 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
-import { FiBookOpen } from "react-icons/fi";
 
-export default function TopNav() {
+export default function TopNav({ goConvert, goTagMapping, goQC, goReport }) {
+  const navBtn = {
+    padding: "8px 18px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    color: "#fff",
+    fontWeight: 600,
+    transition: "0.2s ease",
+  };
+
   return (
     <header
       style={{
@@ -11,8 +18,8 @@ export default function TopNav() {
         top: 0,
         left: 0,
         zIndex: 1000,
-        background: "#000",        // FULL black
-        padding: "14px 0",         // remove white side gaps
+        background: "#000",
+        padding: "14px 0",
         boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
       }}
     >
@@ -21,25 +28,37 @@ export default function TopNav() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 28px",       // inner spacing only
+          padding: "0 28px",
         }}
       >
-        {/* LEFT: LOGO */}
+        {/* LEFT LOGO + TEXT */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "15px",
-            color: "white",
+            gap: "130px",
             fontSize: "28px",
             fontWeight: "700",
+            color: "white",
+            cursor: "pointer",
           }}
         >
-          <FiBookOpen size={30} color="#FFA500" />   
-          Accessible EPUB Convertor
+          <img
+            src="/src/assets/S4C_Logo.png"
+            alt="logo"
+            style={{
+              width: "180px",
+              height: "60px",
+              objectFit: "contain",
+            }}
+          />
+
+          <span>
+            Accessible <span style={{ color: "#FFA500" }}>EPUB</span> Convertor
+          </span>
         </div>
 
-        {/* RIGHT NAVIGATION */}
+        {/* RIGHT NAV BUTTONS */}
         <div
           style={{
             display: "flex",
@@ -47,50 +66,45 @@ export default function TopNav() {
             gap: "25px",
           }}
         >
-          <NavLink
-            to="/convert"
-            style={({ isActive }) => ({
-              padding: "8px 16px",
-              borderRadius: "8px",
-              textDecoration: "none",
-              color: isActive ? "#fff" : "#e5e5e5",
-              background: isActive ? "#FFA500" : "transparent",
-              transition: "0.2s ease",
-              fontWeight: 600,
-            })}
+          {/* Convert */}
+          <span
+            onClick={goConvert}
+            style={navBtn}
+            onMouseEnter={(e) => (e.target.style.background = "#FFA500")}
+            onMouseLeave={(e) => (e.target.style.background = "transparent")}
           >
             Convert
-          </NavLink>
+          </span>
 
-          <NavLink
-            to="/qc"
-            style={({ isActive }) => ({
-              padding: "8px 16px",
-              borderRadius: "8px",
-              textDecoration: "none",
-              color: isActive ? "#fff" : "#e5e5e5",
-              background: isActive ? "#FFA500" : "transparent",
-              transition: "0.2s ease",
-              fontWeight: 600,
-            })}
+          {/* Tag Mapping */}
+          <span
+            onClick={goTagMapping}
+            style={navBtn}
+            onMouseEnter={(e) => (e.target.style.background = "#FFA500")}
+            onMouseLeave={(e) => (e.target.style.background = "transparent")}
           >
-            QC Validation
-          </NavLink>
+            Tag Mapping
+          </span>
 
-          <NavLink
-            to="/report"
-            style={({ isActive }) => ({
-              padding: "8px 16px",
-              borderRadius: "8px",
-              textDecoration: "none",
-              color: isActive ? "#fff" : "#e5e5e5",
-              background: isActive ? "#FFA500" : "transparent",
-              transition: "0.2s ease",
-              fontWeight: 600,
-            })}
+          {/* Validation */}
+          <span
+            onClick={goQC}
+            style={navBtn}
+            onMouseEnter={(e) => (e.target.style.background = "#FFA500")}
+            onMouseLeave={(e) => (e.target.style.background = "transparent")}
+          >
+            Validation
+          </span>
+
+          {/* Report */}
+          <span
+            onClick={goReport}
+            style={navBtn}
+            onMouseEnter={(e) => (e.target.style.background = "#FFA500")}
+            onMouseLeave={(e) => (e.target.style.background = "transparent")}
           >
             Report
-          </NavLink>
+          </span>
         </div>
       </div>
     </header>
