@@ -19,10 +19,18 @@ async def upload_epub(epub: UploadFile = File(...)):
 
     book_id = extract_epub(epub_path)
 
+    # --- Terminal Log ---
+    print("=========================================")
+    print("EPUB Uploaded Successfully!")
+    print(f"Uploaded File      : {epub.filename}")
+    print(f"Generated Book ID  : {book_id}")
+    print("=========================================")
+
     return {
         "book_id": book_id,
         "message": "EPUB uploaded and extracted successfully"
     }
+
 
 # ---------- Load XHTML ----------
 BASE_DIR = Path(__file__).resolve().parent.parent.parent

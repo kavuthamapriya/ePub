@@ -10,14 +10,22 @@ const wrapperStyle = {
   padding: "8px",
 };
 
+let renderLock = false; // 🛑 Prevent double-render in React Strict Mode
+
 function PDFViewer({ file }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
     if (!file || !window.pdfjsLib) return;
 
+    if (renderLock) {
+      // Stop duplicate rendering
+      return;
+    }
+    renderLock = true;
+
     const container = containerRef.current;
-    container.innerHTML = ""; // 🔥 clear old pages
+    container.innerHTML = ""; // Clear previous pages
 
     const reader = new FileReader();
 
@@ -27,7 +35,6 @@ function PDFViewer({ file }) {
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
-
         const viewport = page.getViewport({ scale: 1.2 });
 
         const canvas = document.createElement("canvas");
@@ -45,6 +52,8 @@ function PDFViewer({ file }) {
           viewport,
         }).promise;
       }
+
+      renderLock = false; // Unlock after rendering
     };
 
     reader.readAsArrayBuffer(file);
@@ -52,4 +61,5 @@ function PDFViewer({ file }) {
 
   return <div ref={containerRef} style={wrapperStyle}></div>;
 }
+
 export default PDFViewer;

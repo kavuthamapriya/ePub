@@ -1,26 +1,26 @@
+// TagMappingTool.jsx
 import React, { useState, useEffect } from "react";
 
 const ASP_URL = "http://accessibletagmap.s4carlisle.com/";
 const PROCESS_TOKEN = "INTERNAL_REACT_CALL";
 
-export default function TagMappingTool() {
+export default function TagMappingTool({ bookId }) {
   const [jobId, setJobId] = useState(null);
   const [pdfId, setPdfId] = useState(null);
 
-  // Auto-load the ASP iframe on component mount
   useEffect(() => {
-    const id = "e23c1bff-e8b5-47fd-8af4-2962511592b1";
+    if (!bookId) return;
 
-    // Store payload in window (your original logic)
+    // Store payload
     window.processStore = window.processStore || {};
-    window.processStore[id] = {
-      epub: id,
-      pdf: id,
+    window.processStore[bookId] = {
+      epub: bookId,
+      pdf: bookId,
     };
 
-    setJobId(id);
-    setPdfId(id);
-  }, []);
+    setJobId(bookId);
+    setPdfId(bookId);
+  }, [bookId]);
 
   return (
     <div
@@ -31,6 +31,7 @@ export default function TagMappingTool() {
         overflow: "hidden",
         border: "1px solid #e5e7eb",
         boxShadow: "0 5px 20px rgba(0,0,0,0.15)",
+        marginTop: "20px",
       }}
     >
       {jobId && (
