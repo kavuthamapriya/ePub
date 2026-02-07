@@ -3,9 +3,10 @@ import { Routes, Route, useLocation } from "react-router-dom";
 
 import TopNav from "./components/TopNav";
 import ConvertPage from "./modules/convert/ConvertPage";
-import TagMappingTool from "./modules/mapping/TagMappingTool"; 
+import TagMappingTool from "./modules/mapping/TagMappingTool";
 import TagMappingPage from "./modules/mapping/TagMappingPage";
 import QCPage from "./modules/qc/QCPage";
+import { useConversionStore } from "./store/useConversionStore";
 
 const pageWrapper = {
   background: "linear-gradient(180deg,#f9fafb,#f3f4f6)",
@@ -16,7 +17,6 @@ const pageWrapper = {
   paddingBottom: "40px",
 };
 
-// Smooth scroll helper
 function scrollTo(ref) {
   if (ref.current) {
     ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -25,14 +25,13 @@ function scrollTo(ref) {
 
 export default function App() {
   const location = useLocation();
+  const bookId = useConversionStore((s) => s.bookId); // ⭐ FIX: pass bookId from Zustand
 
-  // Declare ALL refs here
   const convertRef = useRef(null);
   const tagMapRef = useRef(null);
   const qcRef = useRef(null);
   const reportRef = useRef(null);
 
-  // Auto-scroll on route change
   useEffect(() => {
     if (location.pathname.endsWith("/convert")) scrollTo(convertRef);
     if (location.pathname.endsWith("/tagmapping")) scrollTo(tagMapRef);
@@ -49,7 +48,7 @@ export default function App() {
         goReport={() => scrollTo(reportRef)}
       />
 
-      {/* ---------------------- Convert Section ---------------------- */}
+      {/* Convert Section */}
       <div ref={convertRef} style={{ marginTop: "40px" }}>
         <h1
           style={{
@@ -67,7 +66,7 @@ export default function App() {
         <ConvertPage />
       </div>
 
-      {/* ---------------------- Tag Mapping Section ---------------------- */}
+      {/* Tag Mapping Section */}
       <div ref={tagMapRef} style={{ marginTop: "80px" }}>
         <h1
           style={{
@@ -82,10 +81,11 @@ export default function App() {
           Tag Mapping
         </h1>
 
-        <TagMappingTool />
+        {/* ⭐ THIS FIXES TAG MAPPING LOADING */}
+        <TagMappingTool bookId={bookId} />
       </div>
 
-      {/* ---------------------- Validation Section ---------------------- */}
+      {/* Validation Section */}
       <div ref={qcRef} style={{ marginTop: "80px" }}>
         <h1
           style={{
@@ -103,7 +103,7 @@ export default function App() {
         <TagMappingPage />
       </div>
 
-      {/* ---------------------- Report Section ---------------------- */}
+      {/* Report Section */}
       <div ref={reportRef} style={{ marginTop: "80px" }}>
         <h1
           style={{
@@ -121,7 +121,7 @@ export default function App() {
         <QCPage />
       </div>
 
-      {/* Internal empty routes (only for scroll trigger) */}
+      {/* Hidden route triggers */}
       <Routes>
         <Route path="convert" element={<div />} />
         <Route path="tagmapping" element={<div />} />

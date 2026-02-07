@@ -6,21 +6,24 @@ const PROCESS_TOKEN = "INTERNAL_REACT_CALL";
 
 export default function TagMappingTool({ bookId }) {
   const [jobId, setJobId] = useState(null);
-  const [pdfId, setPdfId] = useState(null);
 
   useEffect(() => {
     if (!bookId) return;
 
-    // Store payload
+    // REQUIRED by ASP mapping tool
     window.processStore = window.processStore || {};
     window.processStore[bookId] = {
       epub: bookId,
-      pdf: bookId,
+      pdf: "original.pdf",   // always original.pdf
     };
 
     setJobId(bookId);
-    setPdfId(bookId);
   }, [bookId]);
+
+  if (!bookId) return null;
+
+  // This URL gives LIVE PDF from backend
+  const localPdfUrl = `http://localhost:8000/api/pdf/${bookId}/preview`;
 
   return (
     <div
@@ -34,17 +37,15 @@ export default function TagMappingTool({ bookId }) {
         marginTop: "20px",
       }}
     >
-      {jobId && (
-        <iframe
-          title="Tag Mapping Tool"
-          src={`${ASP_URL}?token=${PROCESS_TOKEN}&jobId=${jobId}&pdfId=${pdfId}`}
-          style={{
-            width: "100%",
-            height: "100%",
-            border: "none",
-          }}
-        />
-      )}
+      <iframe
+        title="Tag Mapping Tool"
+        src={`${ASP_URL}?token=${PROCESS_TOKEN}&jobId=${jobId}&pdfUrl=${encodeURIComponent(localPdfUrl)}`}
+        style={{
+          width: "100%",
+          height: "100%",
+          border: "none",
+        }}
+      />
     </div>
   );
 }

@@ -13,3 +13,6 @@ npm install epubjs
 npm install react-icons
 
 pip install pymysql sqlalchemy
+
+npm install html2canvas
+npm install idb

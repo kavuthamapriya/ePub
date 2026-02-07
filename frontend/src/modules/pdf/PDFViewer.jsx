@@ -10,7 +10,7 @@ const wrapperStyle = {
   padding: "8px",
 };
 
-let renderLock = false; // 🛑 Prevent double-render in React Strict Mode
+let renderLock = false; // prevent double-render in React Strict Mode
 
 function PDFViewer({ file }) {
   const containerRef = useRef(null);

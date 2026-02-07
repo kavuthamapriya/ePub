@@ -1,78 +1,53 @@
 # app/routes/pdf.py
-from fastapi import APIRouter, HTTPException, Body
-from pathlib import Path
-import tempfile
-import re
 
+from fastapi import APIRouter, HTTPException, Body, UploadFile, File, Form
+from fastapi.responses import FileResponse
+from pathlib import Path
+import re
 import fitz  # PyMuPDF
 
 router = APIRouter()
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+WORKSPACE_ROOT = BASE_DIR / "extracted_epub"
 
+
+# =======================================================
+# PDF UPLOAD — Save to extracted_epub/<book_id>/original.pdf
+# =======================================================
+@router.post("/upload")
+async def upload_pdf(book_id: str = Form(...), pdf: UploadFile = File(...)):
+    target_dir = WORKSPACE_ROOT / book_id
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    pdf_path = target_dir / "original.pdf"
+    pdf_path.write_bytes(await pdf.read())
+
+    return {
+        "book_id": book_id,
+        "pdf_path": str(pdf_path)
+    }
+
+
+# =======================================================
+# HTML → TEXT
+# =======================================================
 def html_to_text(html: str) -> str:
-    """
-    Convert HTML into reasonably readable plain text.
-    Tries BeautifulSoup if available; otherwise falls back to
-    stripping tags with a simple regex.
-    """
     try:
-        from bs4 import BeautifulSoup  # type: ignore
-        soup = BeautifulSoup(html, "html.parser")
-        # Use newlines between blocks so the PDF isn't one long line
-        return soup.get_text(separator="\n")
-    except Exception:
-        # Fallback: very simple strip of tags
-        text = re.sub(r"<[^>]+>", "", html)
-        return text
+        from bs4 import BeautifulSoup
+        return BeautifulSoup(html, "html.parser").get_text("\n")
+    except:
+        return re.sub(r"<[^>]+>", "", html)
 
 
-@router.post("/generate")
-async def generate_pdf_from_html(payload: dict = Body(...)):
-    """
-    Endpoint: POST /api/pdf/generate
+# =======================================================
+# SERVE PDF FILE
+# =======================================================
+@router.get("/{book_id}/preview")
+async def pdf_preview(book_id: str):
+    pdf_path = WORKSPACE_ROOT / book_id / "original.pdf"
 
-    payload JSON:
-      { "html": "<h1>Title</h1><p>Content...</p>" }
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="PDF not found")
 
-    response JSON:
-      {
-        "pdf_bytes_hex": "<hex-encoded PDF bytes>",
-        "filename": "accessible.pdf"
-      }
-    """
-    html = payload.get("html", "")
-    if not html:
-        raise HTTPException(status_code=400, detail="No html provided")
-
-    try:
-        # 1) Convert HTML -> plain-ish text
-        text = html_to_text(html)
-
-        # 2) Create a simple PDF with PyMuPDF
-        doc = fitz.open()
-        page = doc.new_page()
-
-        # Basic text insertion. You could get fancier here and
-        # detect headings and change font sizes, etc.
-        # (50, 72) is roughly 50pt from left, 1-inch from top.
-        page.insert_text(
-            (50, 72),
-            text,
-            fontsize=11,
-            fontname="helv",
-        )
-
-        pdf_bytes = doc.tobytes()
-        doc.close()
-
-        # 3) Encode bytes as hex for transport
-        pdf_hex = pdf_bytes.hex()
-
-        return {
-            "pdf_bytes_hex": pdf_hex,
-            "filename": "accessible.pdf",
-        }
-
-    except Exception as e:
-        print("[pdf] PDF generation failed:", e)
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
+    return FileResponse(pdf_path, media_type="application/pdf")

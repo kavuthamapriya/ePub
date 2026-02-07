@@ -1,7 +1,7 @@
 import { create } from "zustand";
+import { useConversionStore } from "./useConversionStore";
 
 export const useTagMappingStore = create((set, get) => ({
-  // selected section
   selectedSection: null,
   sectionHtml: "",
   sectionTags: [],
@@ -14,19 +14,27 @@ export const useTagMappingStore = create((set, get) => ({
     if (!section?.href) return;
 
     try {
+      // 🔥 Get bookId from global conversion store
+      const { bookId } = useConversionStore.getState();
+      if (!bookId) {
+        console.error("bookId missing for XHTML fetch");
+        return;
+      }
+
+      // 🔥 FIXED — book_id added
       const res = await fetch(
-        `http://localhost:8000/api/epub/xhtml?href=${encodeURIComponent(section.href)}`
+        `http://localhost:8000/api/epub/xhtml?book_id=${bookId}&href=${encodeURIComponent(section.href)}`
       );
 
       if (!res.ok) throw new Error("XHTML not found");
 
       const html = await res.text();
 
-      // parse tags from SAME html
+      // Extract tags
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "application/xhtml+xml");
       const tags = [...new Set(
-        [...doc.querySelectorAll("*")].map(el => el.tagName.toLowerCase())
+        [...doc.querySelectorAll("*")].map((el) => el.tagName.toLowerCase())
       )];
 
       set({
@@ -46,7 +54,7 @@ export const useTagMappingStore = create((set, get) => ({
     const section = get().selectedSection;
     if (!section) return;
 
-    set(state => ({
+    set((state) => ({
       tagMappings: {
         ...state.tagMappings,
         [section.href]: {

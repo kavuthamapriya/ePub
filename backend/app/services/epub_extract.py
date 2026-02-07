@@ -12,6 +12,6 @@ def extract_epub(epub_file_path: Path) -> str:
 
     with zipfile.ZipFile(epub_file_path, "r") as zip_ref:
         zip_ref.extractall(target_dir)
-    
+
     print("Extraction Completed!")
     return book_id

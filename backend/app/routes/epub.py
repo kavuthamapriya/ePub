@@ -1,64 +1,69 @@
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import Response
 from pathlib import Path
+import zipfile
 
 from app.services.epub_extract import extract_epub
 
 router = APIRouter()
 
-# ---------- Upload EPUB & Extract ----------
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+EXTRACTED_DIR = BASE_DIR / "extracted_epub"
+EXTRACTED_DIR.mkdir(exist_ok=True)
 
+# ----------------------------------------
+# Utility: Extract TOC (xhtml files list)
+# ----------------------------------------
+def extract_epub_toc(epub_path: Path):
+    toc = []
+    try:
+        with zipfile.ZipFile(epub_path, "r") as zf:
+            for name in zf.namelist():
+                if name.endswith(".xhtml") or name.endswith(".html"):
+                    toc.append(name)
+    except:
+        pass
+    return toc
+
+
+# ----------------------------------------
+# EPUB UPLOAD
+# ----------------------------------------
 @router.post("/epub/upload")
 async def upload_epub(epub: UploadFile = File(...)):
-    epub_path = UPLOAD_DIR / epub.filename
+    # temp save
+    temp_path = EXTRACTED_DIR / epub.filename
+    temp_path.write_bytes(await epub.read())
 
-    with open(epub_path, "wb") as f:
-        f.write(await epub.read())
+    # unzip to extracted_epub/<book_id>
+    book_id = extract_epub(temp_path)
 
-    book_id = extract_epub(epub_path)
+    # move original epub
+    book_dir = EXTRACTED_DIR / book_id
+    final_epub_path = book_dir / "original.epub"
+    temp_path.rename(final_epub_path)
 
-    # --- Terminal Log ---
-    print("=========================================")
-    print("EPUB Uploaded Successfully!")
-    print(f"Uploaded File      : {epub.filename}")
-    print(f"Generated Book ID  : {book_id}")
-    print("=========================================")
+    # extract TOC
+    toc = extract_epub_toc(final_epub_path)
 
     return {
         "book_id": book_id,
-        "message": "EPUB uploaded and extracted successfully"
+        "saved_path": str(final_epub_path),
+        "toc": toc,  # <-- REQUIRED FOR FRONTEND
     }
 
 
-# ---------- Load XHTML ----------
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-EXTRACTED_DIR = BASE_DIR / "extracted_epub"
-
+# ----------------------------------------
+# Load XHTML
+# ----------------------------------------
 @router.get("/epub/xhtml")
-def get_xhtml(
-    book_id: str = Query(...),
-    href: str = Query(...)
-):
-    print("BOOK ID:", book_id)
-    print("RAW href:", href)
-
+def get_xhtml(book_id: str = Query(...), href: str = Query(...)):
     book_root = EXTRACTED_DIR / book_id / "OEBPS"
-
     if not book_root.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"OEBPS folder not found for book_id={book_id}"
-        )
+        raise HTTPException(status_code=404, detail="OEBPS not found")
 
-    # normalize href
     clean = href.replace("\\", "/").lstrip("/")
-    clean = clean.replace("OEBPS/", "")
-    clean = clean.replace("xhtml/", "")
-    clean = clean.replace("Text/", "")
-
-    print("NORMALIZED href:", clean)
+    clean = clean.replace("OEBPS/", "").replace("xhtml/", "").replace("Text/", "")
 
     candidates = [
         book_root / "xhtml" / clean,
@@ -67,19 +72,10 @@ def get_xhtml(
     ]
 
     for path in candidates:
-        print("TRY:", path)
         if path.exists():
             return Response(
-                content=path.read_text(encoding="utf-8", errors="ignore"),
+                path.read_text(encoding="utf-8", errors="ignore"),
                 media_type="application/xhtml+xml"
             )
 
-    raise HTTPException(
-        status_code=404,
-        detail={
-            "error": "XHTML not found",
-            "book_id": book_id,
-            "href": href,
-            "tried": [str(p) for p in candidates]
-        }
-    )
+    raise HTTPException(status_code=404, detail="XHTML not found")

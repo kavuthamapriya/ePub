@@ -11,7 +11,6 @@ import EPUBViewer from "../epub/EPUBViewer";
 import PDFViewer from "../pdf/PDFViewer";
 
 import { useConversionStore } from "../../store/useConversionStore";
-import { useQCStore } from "../../store/useQCStore";
 
 /* Shared glossy card */
 const card = {
@@ -31,6 +30,7 @@ export default function ConvertPage() {
     setEpubFile,
     setPdfFile,
     setBookId,
+    setPdfId,
     setEpubToc,
   } = useConversionStore();
 
@@ -43,63 +43,133 @@ export default function ConvertPage() {
 
   const [previewMode, setPreviewMode] = useState("pdf");
 
-  /** Cleanup old Blob URL */
+  /* Cleanup Blob URL */
   useEffect(() => {
     return () => {
       if (accessibleEpubUrl) URL.revokeObjectURL(accessibleEpubUrl);
     };
   }, [accessibleEpubUrl]);
 
-  /** Sync global store with local state */
+  /* Sync Zustand -> Local state */
   useEffect(() => {
     setLocalEpub(epubFile);
     setLocalPdf(pdfFile);
   }, [epubFile, pdfFile]);
 
-  /* Upload EPUB */
+  // ======================================================
+  //  📘 EPUB Upload
+  // ======================================================
   async function handleEpubUpload(file) {
+  if (!file) return;
+
+  setLocalEpub(file);
+  setEpubFile(file);
+
+  const fd = new FormData();
+  fd.append("epub", file);   // ✅ FIXED
+
+  const res = await fetch("http://localhost:8000/api/epub/upload", {
+    method: "POST",
+    body: fd,
+  });
+
+  const data = await res.json();
+
+  if (!data.book_id) {
+    alert("EPUB upload failed");
+    return;
+  }
+
+  setBookId(data.book_id);
+
+  // Now send to QC
+  await handleQcUpload(file, data.book_id);
+}
+
+  // ======================================================
+  //  📕 PDF Upload
+  // ======================================================
+  async function handlePdfUpload(file) {
     if (!file) return;
 
-    setLocalEpub(file);
-    setEpubFile(file);
+    const { bookId } = useConversionStore.getState();
+    if (!bookId) {
+      alert("Upload EPUB first — bookId missing.");
+      return;
+    }
+
+    setLocalPdf(file);
+    setPdfFile(file);
 
     const fd = new FormData();
-    fd.append("epub", file);
+    fd.append("pdf", file);
+    fd.append("book_id", bookId);
 
-    const res = await fetch("http://localhost:8000/api/epub/upload", {
+    const res = await fetch("http://localhost:8000/api/pdf/upload", {
       method: "POST",
       body: fd,
     });
 
     const data = await res.json();
-    if (data.book_id) setBookId(data.book_id);
-    if (Array.isArray(data.toc)) setEpubToc(data.toc);
+    if (data.pdf_id) setPdfId(data.pdf_id);
   }
 
-  /* Convert Accessible EPUB */
+  // ======================================================
+  //  ♿ QC EPUB Upload (required for AutoFix)
+  // ======================================================
+  async function handleQcUpload(epubFile, bookId) {
+  const fd = new FormData();
+
+  fd.append("book_id", bookId);     // ✔ Required
+  fd.append("epub_file", epubFile); // ✔ REQUIRED field name
+
+  const res = await fetch("http://localhost:8000/api/qc/epub", {
+    method: "POST",
+    body: fd,
+  });
+
+  if (!res.ok) {
+    console.error("QC upload failed", await res.text());
+    throw new Error("QC upload failed");
+  }
+
+  return await res.json();
+}
+
+  // ======================================================
+  //  ♿ Convert to Accessible EPUB
+  // ======================================================
   async function handleConvertAccessible() {
-    if (!localEpub) return;
+    const { bookId } = useConversionStore.getState();
+    if (!bookId) {
+      alert("Upload EPUB first — no bookId.");
+      return;
+    }
 
     setAccessibleLoading(true);
+
     try {
+      const fd = new FormData();
+      fd.append("book_id", bookId);
+
       const res = await fetch("http://localhost:8000/api/qc/auto-fix", {
         method: "POST",
+        body: fd,
       });
 
       if (!res.ok) throw new Error("Auto-fix failed");
 
       const data = await res.json();
-      if (!data.epub_b64) throw new Error("No epub_b64");
+      if (!data.epub_b64) throw new Error("No epub_b64 returned");
 
       const binary = atob(data.epub_b64);
-      const bytes = new Uint8Array([...binary].map((x) => x.charCodeAt(0)));
-      const blob = new Blob([bytes], { type: "application/epub+zip" });
+      const bytes = new Uint8Array([...binary].map((c) => c.charCodeAt(0)));
 
+      const blob = new Blob([bytes], { type: "application/epub+zip" });
       const url = URL.createObjectURL(blob);
+
       setAccessibleEpubBlob(blob);
       setAccessibleEpubUrl(url);
-
-      useConversionStore.getState().setAccessibleEpubBlob(blob);
 
       setPreviewMode("accessible");
     } catch (err) {
@@ -118,7 +188,7 @@ export default function ConvertPage() {
         gap: "20px",
       }}
     >
-      {/* LEFT — Controls */}
+      {/* LEFT PANEL */}
       <aside style={card}>
         <h2
           style={{
@@ -201,15 +271,7 @@ export default function ConvertPage() {
               hidden
               type="file"
               accept="application/pdf"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-
-                console.log("Selected PDF:", file);
-
-                setLocalPdf(file);
-                setPdfFile(file);
-              }}
+              onChange={(e) => handlePdfUpload(e.target.files[0])}
             />
             Choose PDF
           </label>
@@ -258,7 +320,7 @@ export default function ConvertPage() {
         </button>
       </aside>
 
-      {/* CENTER — EPUB Preview */}
+      {/* CENTER PANEL */}
       <main style={{ ...card, height: "85vh", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <FiLayers size={20} color="#2563eb" />
@@ -290,7 +352,7 @@ export default function ConvertPage() {
         </div>
       </main>
 
-      {/* RIGHT — PDF / Accessible EPUB */}
+      {/* RIGHT PANEL */}
       <aside style={{ ...card, height: "85vh", overflow: "hidden" }}>
         <div
           style={{
@@ -303,7 +365,7 @@ export default function ConvertPage() {
             {previewMode === "pdf" ? "PDF Preview" : "Accessible EPUB"}
           </h3>
 
-          {/* Preview Toggle */}
+          {/* Toggle */}
           <div
             style={{
               background: "#e5e7eb",
@@ -355,10 +417,7 @@ export default function ConvertPage() {
         >
           {previewMode === "pdf" ? (
             localPdf ? (
-              <>
-                {console.log("Sending to PDFViewer:", localPdf)}
-                <PDFViewer key={localPdf.name} file={localPdf} />
-              </>
+              <PDFViewer key={localPdf.name} file={localPdf} />
             ) : (
               <div style={{ color: "#6b7280" }}>No PDF uploaded.</div>
             )
@@ -371,7 +430,7 @@ export default function ConvertPage() {
           )}
         </div>
 
-        {/* Download Accessible EPUB */}
+        {/* Download Button */}
         {previewMode === "accessible" && accessibleEpubBlob && (
           <div
             style={{

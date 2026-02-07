@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Body, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from pathlib import Path
 import traceback
 import io
@@ -16,22 +16,42 @@ from app.services.qc_service import (
 
 router = APIRouter()
 
-BACKEND_ROOT = Path(__file__).resolve().parents[2]
-UPLOADS_DIR = BACKEND_ROOT / "uploads"
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parents[2]
+EXTRACTED_DIR = BASE_DIR / "extracted_epub"
+EXTRACTED_DIR.mkdir(parents=True, exist_ok=True)
 
 # -------------------------------------------------
-# Run QC on EPUB (UPLOAD)
+# 1️⃣ Run QC on EPUB (UPLOAD)
 # -------------------------------------------------
 @router.post("/epub")
-async def qc_epub(epub_file: UploadFile = File(...)):
+async def qc_epub(
+    book_id: str = Form(...),
+    epub_file: UploadFile = File(...)
+):
+    """
+    Stores EPUB correctly into:
+    extracted_epub/<book_id>/original.epub
+    and sets _LAST_QC_EPUB so QC & TagMapping work.
+    """
+
     try:
-        data = await epub_file.read()
+        epub_bytes = await epub_file.read()
 
-        save_path = UPLOADS_DIR / epub_file.filename
-        save_path.write_bytes(data)
+        # Folder
+        book_dir = EXTRACTED_DIR / book_id
+        book_dir.mkdir(parents=True, exist_ok=True)
 
-        return run_daisy_ace(data, epub_file.filename)
+        # Save EPUB
+        epub_path = book_dir / "original.epub"
+        epub_path.write_bytes(epub_bytes)
+
+        # 🔥 REQUIRED: Update QC cache
+        _LAST_QC_EPUB["bytes"] = epub_bytes
+        _LAST_QC_EPUB["filename"] = "original.epub"
+        _LAST_QC_EPUB["book_id"] = book_id
+
+        # Run QC
+        return run_daisy_ace(epub_bytes, epub_file.filename)
 
     except Exception as e:
         print(traceback.format_exc())
@@ -39,28 +59,21 @@ async def qc_epub(epub_file: UploadFile = File(...)):
 
 
 # -------------------------------------------------
-# Extract OPF / XHTML
+# 2️⃣ Extract XHTML / OPF
 # -------------------------------------------------
 @router.post("/doc_html")
-async def qc_doc_html(payload: dict = Body(...)):
-    doc_path = payload.get("doc_path")
-    if not doc_path:
-        raise HTTPException(status_code=400, detail="doc_path missing")
+async def qc_doc_html(
+    book_id: str = Form(...),
+    doc_path: str = Form(...)
+):
+    epub_bytes = _LAST_QC_EPUB.get("bytes")
 
-    epubs = sorted(
-        [p for p in UPLOADS_DIR.iterdir() if p.suffix.lower() == ".epub"],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-
-    if not epubs:
-        raise HTTPException(status_code=404, detail="No EPUB uploaded")
-
-    epub_bytes = epubs[0].read_bytes()
+    if not epub_bytes:
+        raise HTTPException(status_code=404, detail="No QC EPUB uploaded")
 
     html = extract_doc_html(epub_bytes, doc_path)
 
-    # OPF fallback
+    # fallback for OPF
     if html is None and doc_path.endswith(".opf"):
         with zipfile.ZipFile(io.BytesIO(epub_bytes)) as zf:
             for name in zf.namelist():
@@ -75,37 +88,35 @@ async def qc_doc_html(payload: dict = Body(...)):
 
 
 # -------------------------------------------------
-# Save edited XHTML / OPF + Re-run QC
+# 3️⃣ FIX EPUB + Re-run QC
 # -------------------------------------------------
 @router.post("/fix")
 async def qc_fix(
+    book_id: str = Form(...),
     doc_path: str = Form(...),
-    html: str = Form(...),
+    html: str = Form(...)
 ):
     try:
-        epubs = sorted(
-            [p for p in UPLOADS_DIR.iterdir() if p.suffix.lower() == ".epub"],
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
+        epub_bytes = _LAST_QC_EPUB.get("bytes")
+        if not epub_bytes:
+            raise HTTPException(status_code=404, detail="No QC EPUB found")
 
-        if not epubs:
-            raise HTTPException(status_code=404, detail="No EPUB found")
-
-        latest = epubs[0]
-        epub_bytes = latest.read_bytes()
-
+        # Write updated XHTML into EPUB
         new_epub = write_doc_into_epub(epub_bytes, doc_path, html)
 
-        ts = int(time.time())
-        out_path = UPLOADS_DIR / f"{latest.stem}-fixed-{ts}.epub"
+        # Save updated version
+        book_dir = EXTRACTED_DIR / book_id
+        book_dir.mkdir(parents=True, exist_ok=True)
+
+        out_path = book_dir / "qc_fixed.epub"
         out_path.write_bytes(new_epub)
 
-        # 🔥 IMPORTANT: update cache for rerun
+        # Update cache
         _LAST_QC_EPUB["bytes"] = new_epub
-        _LAST_QC_EPUB["filename"] = out_path.name
+        _LAST_QC_EPUB["filename"] = "qc_fixed.epub"
+        _LAST_QC_EPUB["book_id"] = book_id
 
-        return run_daisy_ace(new_epub, out_path.name)
+        return run_daisy_ace(new_epub, "qc_fixed.epub")
 
     except Exception as e:
         print(traceback.format_exc())
@@ -113,54 +124,53 @@ async def qc_fix(
 
 
 # -------------------------------------------------
-# AUTO FIX EPUB (Accessible EPUB)
+# 4️⃣ AUTO-FIX EPUB
 # -------------------------------------------------
 @router.post("/auto-fix")
-async def qc_auto_fix():
+async def qc_auto_fix(
+    book_id: str = Form(...)
+):
     epub_bytes = _LAST_QC_EPUB.get("bytes")
-    filename = _LAST_QC_EPUB.get("filename")
 
-    if not epub_bytes or not filename:
-        raise HTTPException(
-            status_code=400,
-            detail="No EPUB available. Run QC first."
-        )
+    if not epub_bytes:
+        raise HTTPException(status_code=400, detail="No EPUB available")
 
     try:
         fixed_epub_bytes = auto_fix_epub(epub_bytes)
 
-        # 🔥 UPDATE CACHE
+        book_dir = EXTRACTED_DIR / book_id
+        book_dir.mkdir(parents=True, exist_ok=True)
+
+        out_path = book_dir / "qc_autofixed.epub"
+        out_path.write_bytes(fixed_epub_bytes)
+
+        # Update cache
         _LAST_QC_EPUB["bytes"] = fixed_epub_bytes
-        _LAST_QC_EPUB["filename"] = filename.replace(".epub", "-autofixed.epub")
+        _LAST_QC_EPUB["filename"] = "qc_autofixed.epub"
+        _LAST_QC_EPUB["book_id"] = book_id
 
         return {
             "epub_b64": base64.b64encode(fixed_epub_bytes).decode("utf-8"),
-            "filename": "accessible.epub",
+            "filename": "qc_autofixed.epub",
+            "saved_at": str(out_path),
         }
 
     except Exception as e:
-        print("AUTO FIX ERROR:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# -------------------------------------------------
-# 🔁 Re-run DAISY QC (NO re-upload)
-# -------------------------------------------------
+# ---------------------------------------------
+# 5️⃣ RE-RUN QC (uses last modified EPUB)
+# ---------------------------------------------
 @router.post("/rerun")
 async def qc_rerun():
     epub_bytes = _LAST_QC_EPUB.get("bytes")
     filename = _LAST_QC_EPUB.get("filename")
 
-    if not epub_bytes or not filename:
-        raise HTTPException(
-            status_code=400,
-            detail="No EPUB available. Upload or fix EPUB first."
-        )
+    if not epub_bytes:
+        raise HTTPException(status_code=400, detail="No EPUB available for re-run")
 
     try:
-        print("🔁 Re-running QC on:", filename)
-        return run_daisy_ace(epub_bytes, filename)
-
+        result = run_daisy_ace(epub_bytes, filename)
+        return result
     except Exception as e:
-        print("RE-RUN QC ERROR:", e)
         raise HTTPException(status_code=500, detail=str(e))

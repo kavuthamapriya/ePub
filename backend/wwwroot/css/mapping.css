@@ -1,0 +1,8 @@
+.mapping-table select {
+    width: 100%;
+    padding: 4px;
+}
+
+.mapping-table th {
+    background: #eee;
+}

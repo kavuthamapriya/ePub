@@ -1,0 +1,27 @@
+{
+  "Items": [
+    "section",
+    "article",
+    "nav",
+    "aside",
+    "p",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "figure",
+    "figcaption",
+    "ul",
+    "ol",
+    "li",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "img"
+  ]
+}

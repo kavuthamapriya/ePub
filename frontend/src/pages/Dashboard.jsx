@@ -10,8 +10,12 @@ import {
   FiLayers,
   FiFileText,
 } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
+
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+
   return (
     <div
       style={{
@@ -174,6 +178,7 @@ export default function Dashboard() {
               title="Ninja XML Generator"
               subtitle="EPUB → XML"
               description="Extracts and structures data into 'Single Source of Truth' XML (JATS/BITS) for multi-channel use."
+              disabled
             />
           
             <ToolCard
@@ -181,6 +186,7 @@ export default function Dashboard() {
               title="Ninja PDF Transformer"
               subtitle="EPUB → PDF"
               description="High-speed creation of digital-first PDFs from ePUB."
+              onClick={() => navigate("/epub-to-pdf")}
             />
           </div>
         </div>

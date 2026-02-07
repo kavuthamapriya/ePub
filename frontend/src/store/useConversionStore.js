@@ -5,21 +5,23 @@ export const useConversionStore = create((set, get) => ({
   epubFile: null,
   bookId: null,
 
+  /* ---------- PDF ---------- */
+  pdfFile: null,
+  pdfId: null,
+
   /* ---------- Accessible EPUB Output ---------- */
-  accessibleEpubBlob: null,   // 🔥 IMPORTANT (was missing)
+  accessibleEpubBlob: null,
 
   /* ---------- QC ---------- */
-  qcStatus: "idle", // idle | running | done | error
+  qcStatus: "idle",
   qcSummary: {
     errors: 0,
     warnings: 0,
     passes: 0,
   },
 
-  /* ---------- Convert / HTML Viewer ---------- */
+  /* ---------- HTML / EPUB TOC ---------- */
   accessibleHtml: "",
-
-  /* ---------- TOC ---------- */
   epubToc: [],
   selectedTocItem: null,
 
@@ -29,12 +31,15 @@ export const useConversionStore = create((set, get) => ({
   selectedPageTags: [],
   tagMappings: {},
 
-  /* ---------- Setters ---------- */
+  /* ---------- SETTERS ---------- */
   setEpubFile: (file) =>
     set({
       epubFile: file,
-      accessibleEpubBlob: null,   // reset old output
+      accessibleEpubBlob: null,
     }),
+
+  setPdfFile: (file) => set({ pdfFile: file }),
+  setPdfId: (id) => set({ pdfId: id }),
 
   setBookId: (id) => set({ bookId: id }),
   setAccessibleHtml: (html) => set({ accessibleHtml: html }),
@@ -44,15 +49,18 @@ export const useConversionStore = create((set, get) => ({
   setSelectedPageHtml: (html) => set({ selectedPageHtml: html }),
   setSelectedPageTags: (tags) => set({ selectedPageTags: tags }),
 
-  /* ---------- Store the CONVERTED EPUB ---------- */
   setAccessibleEpubBlob: (blob) =>
     set({
-      accessibleEpubBlob: blob, // 🔥 REQUIRED FOR RERUN QC
+      accessibleEpubBlob: blob,
     }),
 
-  /* ---------- AUTO QC on upload ---------- */
-  autoRunQC: async (epubFile) => {
-    if (!epubFile) return;
+  /* ====================================================
+     AUTO QC (AFTER EPUB UPLOAD)
+     FIXED: added book_id to request
+  ==================================================== */
+  autoRunQC: async () => {
+    const { epubFile, bookId } = get();
+    if (!epubFile || !bookId) return;
 
     try {
       set({
@@ -61,6 +69,7 @@ export const useConversionStore = create((set, get) => ({
       });
 
       const form = new FormData();
+      form.append("book_id", bookId);
       form.append("epub_file", epubFile);
 
       const res = await fetch("http://localhost:8000/api/qc/epub", {
@@ -68,9 +77,7 @@ export const useConversionStore = create((set, get) => ({
         body: form,
       });
 
-      if (!res.ok) {
-        throw new Error(`QC failed: ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`QC failed: ${res.status}`);
 
       const data = await res.json();
 
@@ -88,7 +95,7 @@ export const useConversionStore = create((set, get) => ({
     }
   },
 
-  /* ---------- Tag Mapping ---------- */
+  /* ---------- TAG MAPPING ---------- */
   setTagMapping: (href, tag, value) =>
     set((state) => ({
       tagMappings: {
@@ -100,7 +107,7 @@ export const useConversionStore = create((set, get) => ({
       },
     })),
 
-  /* ---------- Reset ---------- */
+  /* ---------- RESET ---------- */
   resetAfterConvert: () =>
     set({
       selectedTocItem: null,

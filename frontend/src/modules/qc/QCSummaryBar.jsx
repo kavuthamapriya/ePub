@@ -46,14 +46,14 @@ export default function QCSummaryBar({
   onWarningsClick,
   onPassesClick,
 }) {
-  const { epubFile, accessibleEpubBlob } = useConversionStore();
+  const { epubFile } = useConversionStore();
   const { qcStatus, qcSummary, setQcStatus, setQcSummary, setQcIssues } =
     useQCStore();
 
   const [rerunMessage, setRerunMessage] = useState("");
   const lastRunRef = useRef(null);
 
-  /* Auto QC on upload */
+  /* Auto QC on EPUB upload */
   useEffect(() => {
     if (!epubFile) return;
     if (lastRunRef.current === epubFile) return;
@@ -66,8 +66,12 @@ export default function QCSummaryBar({
         setQcIssues({ errors: [], warnings: [], passes: [] });
         setQcSummary({ errors: 0, warnings: 0, passes: 0 });
 
+        const { bookId } = useConversionStore.getState();
+
+        // 💥 CRITICAL FIX — send book_id + epub_file
         const fd = new FormData();
-        fd.append("epub_file", epubFile);
+        fd.append("book_id", bookId);      // required
+        fd.append("epub_file", epubFile);  // required
 
         const res = await fetch("http://localhost:8000/api/qc/epub", {
           method: "POST",
@@ -77,6 +81,7 @@ export default function QCSummaryBar({
         if (!res.ok) throw new Error("QC failed");
 
         const data = await res.json();
+
         setQcIssues(data.issues);
         setQcSummary(data.summary);
 
@@ -85,7 +90,8 @@ export default function QCSummaryBar({
         }
 
         setQcStatus("done");
-      } catch {
+      } catch (err) {
+        console.error("QC ERROR:", err);
         setQcStatus("error");
       }
     }
@@ -93,13 +99,8 @@ export default function QCSummaryBar({
     runQC();
   }, [epubFile]);
 
-  /* Re-run QC */
+  /* Manual Re-run QC */
   async function rerunQC() {
-    if (!accessibleEpubBlob) {
-      setRerunMessage("Convert to Accessible EPUB first.");
-      return;
-    }
-
     setRerunMessage("");
     setQcStatus("running");
 
@@ -107,9 +108,11 @@ export default function QCSummaryBar({
       const res = await fetch("http://localhost:8000/api/qc/rerun", {
         method: "POST",
       });
+
       if (!res.ok) throw new Error("Failed");
 
       const data = await res.json();
+
       setQcIssues(data.issues);
       setQcSummary(data.summary);
 
@@ -119,6 +122,7 @@ export default function QCSummaryBar({
 
       setQcStatus("done");
     } catch (err) {
+      console.error("Re-run QC error:", err);
       setQcStatus("error");
     }
   }
@@ -162,7 +166,6 @@ export default function QCSummaryBar({
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-        {/* Errors */}
         <SummaryBox
           label="Errors"
           value={qcSummary.errors}
@@ -172,7 +175,6 @@ export default function QCSummaryBar({
           onClick={onErrorsClick}
         />
 
-        {/* Warnings */}
         <SummaryBox
           label="Warnings"
           value={qcSummary.warnings}
@@ -182,7 +184,6 @@ export default function QCSummaryBar({
           onClick={onWarningsClick}
         />
 
-        {/* Passes */}
         <SummaryBox
           label="Passes"
           value={qcSummary.passes}
@@ -192,7 +193,6 @@ export default function QCSummaryBar({
           onClick={onPassesClick}
         />
 
-        {/* Rerun Button */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <button
             onClick={rerunQC}

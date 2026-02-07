@@ -1,5 +1,3 @@
-# backend/app/routes/convert.py
-
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
@@ -8,12 +6,10 @@ from app.services.epub_rebuild_service import rebuild_epub_accessible
 
 router = APIRouter()
 
-
 @router.post("/convert/{book_id}")
 def convert_epub_accessible(book_id: str):
     """
-    Convert WORKSPACE → Accessible EPUB
-    NO re-upload
+    Convert WORKSPACE → Accessible EPUB (download only)
     """
 
     try:

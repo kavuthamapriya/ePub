@@ -1,0 +1,11 @@
+#editor {
+    border: 1px solid #ccc;
+    height: 450px;
+    background: #fff;
+}
+
+.file-list {
+    background: #fff;
+    border-right: 1px solid #ddd;
+    height: 100%;
+}
