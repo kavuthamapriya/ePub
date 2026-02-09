@@ -110,3 +110,6 @@ backend/workspaces/
 *.epub
 *.pdf
 *.zip
+
+#DB
+app/db.py

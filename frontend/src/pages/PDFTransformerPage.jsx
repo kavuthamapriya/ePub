@@ -1,125 +1,87 @@
+// src/pages/PDFTransformerPage.jsx
 import React, { useEffect, useState } from "react";
 import { FiUpload, FiDownload, FiArrowLeft } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 import EPUBViewer from "../modules/epub/EPUBViewer";
-import JSZip from "jszip";
 import S4C_Logo from "/src/assets/S4C_Logo.png";
 
 import {
-  saveEPUB,
-  loadEPUB,
-  loadAllEPUBs,
+  uploadEPUB,
+  getAllEPUBs,
+  getEPUB,
   deleteEPUB,
 } from "../utils/epubDB";
 
-/* Extract EPUB Cover */
-async function extractCover(file) {
-  try {
-    const zip = await JSZip.loadAsync(file);
-    const container = await zip.file("META-INF/container.xml")?.async("string");
-
-    if (!container) return null;
-
-    const dom = new DOMParser().parseFromString(container, "text/xml");
-    const opfPath = dom.getElementsByTagName("rootfile")[0]?.getAttribute("full-path");
-    if (!opfPath) return null;
-
-    const opfXml = await zip.file(opfPath).async("string");
-    const opfDom = new DOMParser().parseFromString(opfXml, "text/xml");
-    const items = opfDom.getElementsByTagName("item");
-
-    let imgHref = null;
-
-    for (let item of items) {
-      const props = item.getAttribute("properties");
-      const type = item.getAttribute("media-type");
-      const href = item.getAttribute("href");
-
-      if (props?.includes("cover-image")) imgHref = href;
-      if (!imgHref && type?.startsWith("image/")) imgHref = href;
-    }
-
-    if (!imgHref) return null;
-
-    const folder = opfPath.split("/").slice(0, -1).join("/");
-    const finalPath = folder ? `${folder}/${imgHref}` : imgHref;
-
-    const imgFile = zip.file(finalPath);
-    if (!imgFile) return null;
-
-    const base64 = await imgFile.async("base64");
-    return `data:image/jpeg;base64,${base64}`;
-  } catch {
-    return null;
-  }
-}
-
 export default function PDFTransformerPage() {
+  const navigate = useNavigate();
+
   const [epubFiles, setEpubFiles] = useState([]);
   const [selectedEpub, setSelectedEpub] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState("grid");
 
-  /* Load EPUBs */
-  useEffect(() => {
-    (async () => {
-      const metadata = JSON.parse(localStorage.getItem("persist_epubs") || "[]");
-      const storedFiles = await loadAllEPUBs();
+  /* ===================== Load EPUB List ===================== */
+  const loadEpubList = async () => {
+    try {
+      const rows = await getAllEPUBs();
 
-      const merged = metadata.map(m => ({
-        ...m,
-        file: storedFiles.find(s => s.id === m.id)?.file || null,
+      const mapped = rows.map((row) => ({
+        id: row.id,
+        name: row.filename,
+        cover: row.cover_base64, // FIXED ❗ no extra encoding
       }));
 
-      setEpubFiles(merged);
-    })();
+      setEpubFiles(mapped);
+    } catch (err) {
+      console.error("Error loading EPUB list:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadEpubList();
   }, []);
 
-  /* Save metadata */
-  useEffect(() => {
-    const metadata = epubFiles.map(({ id, name, cover }) => ({ id, name, cover }));
-    localStorage.setItem("persist_epubs", JSON.stringify(metadata));
-  }, [epubFiles]);
-
-  /* Upload EPUB */
+  /* ===================== Upload EPUB ===================== */
   const handleUpload = async (file) => {
-    const id = Date.now();
-    const cover = await extractCover(file);
-
-    await saveEPUB(id, file);
-
-    setEpubFiles(prev => [{ id, name: file.name, cover, file }, ...prev]);
+    if (!file) return;
+    await uploadEPUB(file);
+    await loadEpubList();
   };
 
-  /* Delete EPUB */
+  /* ===================== Delete EPUB ===================== */
   const handleDelete = async (id) => {
     await deleteEPUB(id);
-    setEpubFiles(prev => prev.filter(ep => ep.id !== id));
+    setEpubFiles((prev) => prev.filter((ep) => ep.id !== id));
   };
 
-  /* Open Viewer */
+  /* ===================== Open EPUB Viewer ===================== */
   const openViewer = async (epub) => {
-    let file = epub.file;
+    const blob = await getEPUB(epub.id);
 
-    if (!file) file = await loadEPUB(epub.id);
+    // FIX: Convert to ArrayBuffer (EPUB.js works best with this)
+    const arrayBuffer = await blob.arrayBuffer();
 
-    setSelectedEpub({ ...epub, file });
+    setSelectedEpub({
+      ...epub,
+      file: arrayBuffer,
+    });
+
     setView("viewer");
   };
 
-  /* Back */
-  const goBack = () => {
-    setSelectedEpub(null);
-    setPdfUrl(null);
-    setView("grid");
-  };
-
-  /* Convert EPUB to PDF */
+  /* ===================== Convert EPUB → PDF ===================== */
   const handleConvert = async () => {
+    if (!selectedEpub) return;
+
     setLoading(true);
 
     const fd = new FormData();
-    fd.append("epub", selectedEpub.file);
+    fd.append(
+      "epub",
+      new Blob([selectedEpub.file], { type: "application/epub+zip" }),
+      selectedEpub.name
+    );
 
     const res = await fetch("http://localhost:8000/api/epub2pdf/epub-to-pdf", {
       method: "POST",
@@ -128,11 +90,10 @@ export default function PDFTransformerPage() {
 
     const blob = await res.blob();
     setPdfUrl(URL.createObjectURL(blob));
-
     setLoading(false);
   };
 
-  /* Download PDF */
+  /* ===================== Download PDF ===================== */
   const handleDownload = () => {
     const a = document.createElement("a");
     a.href = pdfUrl;
@@ -140,10 +101,16 @@ export default function PDFTransformerPage() {
     a.click();
   };
 
+  /* ===================== GO BACK ===================== */
+  const goBack = () => {
+    setSelectedEpub(null);
+    setPdfUrl(null);
+    setView("grid");
+  };
+
   return (
     <div style={{ background: "#f8fafc", minHeight: "100vh" }}>
-      
-      {/* NAVBAR */}
+      {/* NAV BAR */}
       <nav
         style={{
           width: "100%",
@@ -161,15 +128,30 @@ export default function PDFTransformerPage() {
       </nav>
 
       <div style={{ padding: "25px" }}>
-        
-        {/* GRID MODE */}
+        {/* ===================== GRID VIEW ===================== */}
         {view === "grid" && (
           <>
+            <div
+              onClick={() => navigate("/dashboard")}
+              style={{
+                color: "#4f46e5",
+                fontWeight: 600,
+                cursor: "pointer",
+                marginBottom: "10px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <FiArrowLeft /> Back to Dashboard
+            </div>
+
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 marginBottom: "20px",
+                alignItems: "center",
               }}
             >
               <h1 style={{ fontSize: "28px", fontWeight: "700" }}>
@@ -193,12 +175,12 @@ export default function PDFTransformerPage() {
                   hidden
                   type="file"
                   accept=".epub"
-                  onChange={(e) => handleUpload(e.target.files[0])}
+                  onChange={(e) => handleUpload(e.target.files?.[0])}
                 />
               </label>
             </div>
 
-            {/* EPUB GRID */}
+            {/* GRID */}
             <div
               style={{
                 display: "grid",
@@ -218,7 +200,6 @@ export default function PDFTransformerPage() {
                     cursor: "pointer",
                   }}
                 >
-                  {/* DELETE BUTTON */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -234,14 +215,12 @@ export default function PDFTransformerPage() {
                       borderRadius: "50%",
                       width: "28px",
                       height: "28px",
-                      fontSize: "16px",
                       cursor: "pointer",
                     }}
                   >
                     ×
                   </button>
 
-                  {/* EPUB Cover */}
                   <div onClick={() => openViewer(epub)}>
                     <img
                       src={epub.cover}
@@ -253,6 +232,7 @@ export default function PDFTransformerPage() {
                         borderRadius: "8px",
                       }}
                     />
+
                     <p
                       style={{
                         marginTop: "10px",
@@ -270,22 +250,20 @@ export default function PDFTransformerPage() {
           </>
         )}
 
-        {/* VIEWER MODE */}
+        {/* ===================== VIEWER ===================== */}
         {view === "viewer" && selectedEpub && (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "420px 1fr 500px",  /* ⭐ WIDER LEFT PANEL */
+              gridTemplateColumns: "420px 1fr 500px",
               gap: "20px",
               height: "85vh",
             }}
           >
-            {/* BACK BUTTON */}
             <button
               onClick={goBack}
               style={{
                 gridColumn: "1 / span 3",
-                marginBottom: "10px",
                 background: "transparent",
                 border: "none",
                 color: "#4f46e5",
@@ -300,20 +278,17 @@ export default function PDFTransformerPage() {
               <FiArrowLeft /> Back to EPUBs
             </button>
 
-            {/* EPUB VIEWER */}
             <div
               style={{
                 background: "white",
                 borderRadius: "12px",
                 padding: "12px",
                 border: "1px solid #e5e7eb",
-                overflow: "hidden",
               }}
             >
               <EPUBViewer file={selectedEpub.file} />
             </div>
 
-            {/* PDF PANEL */}
             <div
               style={{
                 background: "white",
@@ -354,6 +329,7 @@ export default function PDFTransformerPage() {
                       marginTop: "15px",
                     }}
                   />
+
                   <button
                     onClick={handleDownload}
                     style={{

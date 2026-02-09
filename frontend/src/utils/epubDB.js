@@ -1,35 +1,36 @@
-import { openDB } from "idb";
+// utils/epubDB.js
 
-const DB_NAME = "EPUB_STORAGE_DB";
-const STORE = "epubs";
+const BASE_URL = "http://localhost:8000/api/epub2pdf_storage";
 
-async function initDB() {
-  return openDB(DB_NAME, 2, {
-    upgrade(db) {
-      // Always create store if missing
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: "id" });
-      }
-    },
+export async function uploadEPUB(file) {
+  const fd = new FormData();
+  fd.append("epub", file);
+
+  const res = await fetch(`${BASE_URL}/upload`, {
+    method: "POST",
+    body: fd,
   });
+
+  if (!res.ok) throw new Error("Upload failed");
+  return await res.json(); // { id, uploaded: true }
 }
 
-export async function saveEPUB(id, file) {
-  const db = await initDB();
-  await db.put(STORE, { id, file });
+export async function getAllEPUBs() {
+  const res = await fetch(`${BASE_URL}/all`);
+  if (!res.ok) throw new Error("Failed to load epubs");
+  return await res.json(); // [{id, filename, cover_base64}]
 }
 
-export async function loadEPUB(id) {
-  const db = await initDB();
-  const item = await db.get(STORE, id);
-  return item?.file || null;
+export async function getEPUB(id) {
+  const res = await fetch(`${BASE_URL}/${id}`);
+  if (!res.ok) throw new Error("EPUB not found");
+  return await res.blob(); // return actual file
 }
 
-export async function loadAllEPUBs() {
-  const db = await initDB();
-  return await db.getAll(STORE);
-}
 export async function deleteEPUB(id) {
-  const db = await initDB();
-  await db.delete(STORE, id);
+  const res = await fetch(`${BASE_URL}/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Delete failed");
+  return await res.json();
 }

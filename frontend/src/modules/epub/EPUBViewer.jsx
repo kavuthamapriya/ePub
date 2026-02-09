@@ -1,4 +1,5 @@
 // src/modules/epub/EPUBViewer.jsx
+
 import React, { useEffect, useRef } from "react";
 import ePub from "epubjs";
 import { useConversionStore } from "../../store/useConversionStore";
@@ -18,20 +19,16 @@ export default function EPUBViewer({ file }) {
   useEffect(() => {
     if (!file || !viewerRef.current) return;
 
-    //  clear previous iframe
     viewerRef.current.innerHTML = "";
 
     let book;
 
     try {
-      // ✅ HANDLE ARRAYBUFFER (Accessible EPUB case)
+      // FIX: unified arraybuffer handling
       if (file instanceof ArrayBuffer) {
-        book = ePub();
-        book.open(file);
-      }
-      // ✅ HANDLE URL / FILE (Normal EPUB upload)
-      else {
-        book = ePub(file);
+        book = new ePub(file);
+      } else {
+        book = new ePub(file);
       }
 
       bookRef.current = book;
@@ -47,7 +44,7 @@ export default function EPUBViewer({ file }) {
       renditionRef.current = rendition;
       rendition.display();
 
-      /* -------- TOC -------- */
+      // TOC
       book.loaded.navigation.then((nav) => {
         if (!nav) return;
         setEpubToc(
@@ -58,7 +55,7 @@ export default function EPUBViewer({ file }) {
         );
       });
 
-      /* -------- TAG EXTRACTION (Rendered XHTML) -------- */
+      // TAG EXTRACTION
       rendition.on("rendered", (section) => {
         const iframe = viewerRef.current.querySelector("iframe");
         if (!iframe) return;
@@ -78,14 +75,13 @@ export default function EPUBViewer({ file }) {
         ]);
 
         const tags = new Set();
-
         doc.querySelectorAll("*").forEach((el) => {
-          const tag = el.tagName.toLowerCase();
-          if (!skip.has(tag)) tags.add(tag);
+          const t = el.tagName.toLowerCase();
+          if (!skip.has(t)) tags.add(t);
         });
 
         setSelectedPageHref(section.href);
-        setSelectedPageTags(Array.from(tags).sort());
+        setSelectedPageTags([...tags].sort());
       });
     } catch (err) {
       console.error("EPUBViewer failed:", err);
@@ -99,7 +95,7 @@ export default function EPUBViewer({ file }) {
     };
   }, [file]);
 
-  /* -------- Jump when TOC clicked -------- */
+  // Jump to selected TOC item
   useEffect(() => {
     if (selectedTocItem && renditionRef.current) {
       renditionRef.current.display(selectedTocItem.href);
