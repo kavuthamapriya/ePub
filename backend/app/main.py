@@ -8,6 +8,7 @@ from app.routes.preview import router as preview_router
 from app.routes.pdf import router as pdf_router
 from app.routes.epub2pdf import router as epub2pdf_router
 from app.routes.epub2pdf_storage import router as epub2pdf_storage_router
+from app.routes.auto_fix import router as auto_fix_router   # ✅ ADD THIS
 from app.db import database
 
 app = FastAPI(title="Accessible EPUB System")
@@ -35,6 +36,7 @@ app.include_router(preview_router, prefix="/api")
 app.include_router(pdf_router, prefix="/api/pdf")
 app.include_router(epub2pdf_router, prefix="/api/epub2pdf")
 app.include_router(epub2pdf_storage_router, prefix="/api/epub2pdf_storage")
+app.include_router(auto_fix_router, prefix="/api/auto_fix")   # ✅ ADD THIS
 
 @app.get("/")
 def root():

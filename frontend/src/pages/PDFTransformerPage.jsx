@@ -29,7 +29,7 @@ export default function PDFTransformerPage() {
       const mapped = rows.map((row) => ({
         id: row.id,
         name: row.filename,
-        cover: row.cover_base64, // FIXED ❗ no extra encoding
+        cover: row.cover_base64,
       }));
 
       setEpubFiles(mapped);
@@ -58,8 +58,6 @@ export default function PDFTransformerPage() {
   /* ===================== Open EPUB Viewer ===================== */
   const openViewer = async (epub) => {
     const blob = await getEPUB(epub.id);
-
-    // FIX: Convert to ArrayBuffer (EPUB.js works best with this)
     const arrayBuffer = await blob.arrayBuffer();
 
     setSelectedEpub({
@@ -90,6 +88,7 @@ export default function PDFTransformerPage() {
 
     const blob = await res.blob();
     setPdfUrl(URL.createObjectURL(blob));
+
     setLoading(false);
   };
 
@@ -108,8 +107,79 @@ export default function PDFTransformerPage() {
     setView("grid");
   };
 
+  /* ===================== LOADING OVERLAY (Animated) ===================== */
+  const LoadingOverlay = () => (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        background: "rgba(255, 255, 255, 0.85)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+        backdropFilter: "blur(6px)",
+        animation: "fadeIn 0.3s ease",
+      }}
+    >
+      {/* SPINNER */}
+      <div
+        style={{
+          width: "80px",
+          height: "80px",
+          border: "8px solid #d1d5db",
+          borderTopColor: "#4f46e5",
+          borderRadius: "50%",
+          animation: "spin 1s infinite linear",
+        }}
+      ></div>
+
+      {/* ANIMATED TEXT */}
+      <p
+        style={{
+          marginTop: "22px",
+          fontSize: "22px",
+          fontWeight: 700,
+          color: "#4f46e5",
+          animation: "pulse 1.5s infinite ease-in-out",
+        }}
+      >
+        Converting… Please wait
+      </p>
+
+      {/* CSS KEYFRAMES */}
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+
+          @keyframes pulse {
+            0% { opacity: 0.4; transform: scale(0.98); }
+            50% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0.4; transform: scale(0.98); }
+          }
+
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}
+      </style>
+    </div>
+  );
+
+  /* ===================== RENDER ===================== */
   return (
     <div style={{ background: "#f8fafc", minHeight: "100vh" }}>
+      {/* SHOW LOADING OVERLAY */}
+      {loading && <LoadingOverlay />}
+
       {/* NAV BAR */}
       <nav
         style={{
@@ -255,9 +325,9 @@ export default function PDFTransformerPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "420px 1fr 500px",
+              gridTemplateColumns: "450px 1fr 190px",
               gap: "20px",
-              height: "85vh",
+              height: "88vh",
             }}
           >
             <button
@@ -278,23 +348,28 @@ export default function PDFTransformerPage() {
               <FiArrowLeft /> Back to EPUBs
             </button>
 
+            {/* LEFT PANEL: EPUB VIEWER */}
             <div
               style={{
                 background: "white",
                 borderRadius: "12px",
-                padding: "12px",
+                padding: "0",
                 border: "1px solid #e5e7eb",
+                height: "100%",
+                overflow: "hidden",
               }}
             >
               <EPUBViewer file={selectedEpub.file} />
             </div>
 
+            {/* RIGHT PANEL: PDF VIEWER */}
             <div
               style={{
                 background: "white",
                 borderRadius: "12px",
                 padding: "20px",
                 border: "1px solid #e5e7eb",
+                overflow: "auto",
               }}
             >
               {!pdfUrl ? (
@@ -320,31 +395,31 @@ export default function PDFTransformerPage() {
               ) : (
                 <>
                   <h2>Converted PDF</h2>
-                  <iframe
-                    src={pdfUrl}
-                    style={{
-                      width: "100%",
-                      height: "70%",
-                      border: "none",
-                      marginTop: "15px",
-                    }}
-                  />
+                  
+                  <div
+  style={{
+    width: "100%",
+    height: "100%",
+    borderRadius: "12px",
+    overflow: "hidden",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    background: "#f3f4f6",
+    padding: "0",
+  }}
+>
+  <iframe
+    src={`${pdfUrl}#zoom=page-width`}
+    style={{
+      width: "100%",
+      height: "100%",
+      border: "none",
+    }}
+  ></iframe>
+</div>
 
-                  <button
-                    onClick={handleDownload}
-                    style={{
-                      marginTop: "15px",
-                      width: "100%",
-                      padding: "14px",
-                      background: "#f97316",
-                      color: "white",
-                      borderRadius: "10px",
-                      border: "none",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <FiDownload /> Download PDF
-                  </button>
+                  
                 </>
               )}
             </div>

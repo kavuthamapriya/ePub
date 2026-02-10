@@ -23,9 +23,14 @@ export async function getAllEPUBs() {
 
 export async function getEPUB(id) {
   const res = await fetch(`${BASE_URL}/${id}`);
-  if (!res.ok) throw new Error("EPUB not found");
-  return await res.blob(); // return actual file
+
+  const blob = await res.blob();
+
+  console.log("📦 getEPUB Blob size:", blob.size);
+
+  return blob;
 }
+
 
 export async function deleteEPUB(id) {
   const res = await fetch(`${BASE_URL}/${id}`, {
