@@ -8,6 +8,8 @@ import OldAppContainer from "./pages/OldAppContainer";
 import EpubToAccessible from "./pages/EpubToAccessible";
 import PDFTransformerPage from "./pages/PDFTransformerPage";
 import "./styles/global.css";
+import AccessiblePDFValidator from "./pages/accessiblepdfvalidator";
+
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -28,6 +30,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 
         {/* 5. Old App */}
         <Route path="/app" element={<OldAppContainer />} />
+
+        <Route
+          path="/accessiblepdfvalidator"
+          element={<AccessiblePDFValidator />}
+        />
 
       </Routes>
     </BrowserRouter>

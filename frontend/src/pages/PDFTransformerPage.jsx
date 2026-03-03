@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import EPUBViewer from "../modules/epub/EPUBViewer";
 import S4C_Logo from "/src/assets/S4C_Logo.png";
 
+import Toast from "../components/Toast"; // Toast system
+
 import {
   uploadEPUB,
   getAllEPUBs,
@@ -20,6 +22,11 @@ export default function PDFTransformerPage() {
   const [pdfUrl, setPdfUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState("grid");
+  const [toast, setToast] = useState(null);
+
+  // Delete modal control
+  const [deleteId, setDeleteId] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   /* ===================== Load EPUB List ===================== */
   const loadEpubList = async () => {
@@ -45,14 +52,51 @@ export default function PDFTransformerPage() {
   /* ===================== Upload EPUB ===================== */
   const handleUpload = async (file) => {
     if (!file) return;
+
+    const fileName = file.name.trim().toLowerCase();
+    const exists = epubFiles.some(
+      (ep) => ep.name.trim().toLowerCase() === fileName
+    );
+
+    if (exists) {
+      setToast({
+        message: "⚠ This EPUB is already uploaded!",
+        type: "warning",
+      });
+      return;
+    }
+
     await uploadEPUB(file);
     await loadEpubList();
+
+    setToast({
+      message: "✔ EPUB uploaded successfully!",
+      type: "success",
+    });
   };
 
-  /* ===================== Delete EPUB ===================== */
-  const handleDelete = async (id) => {
-    await deleteEPUB(id);
-    setEpubFiles((prev) => prev.filter((ep) => ep.id !== id));
+  /* ===================== Open Delete Modal ===================== */
+  const openDeleteConfirm = (id) => {
+    setDeleteId(id);
+    setShowDeleteModal(true);
+  };
+
+  /* ===================== Confirm Delete ===================== */
+  const confirmDelete = async () => {
+    await deleteEPUB(deleteId);
+    setEpubFiles((prev) => prev.filter((ep) => ep.id !== deleteId));
+
+    setShowDeleteModal(false);
+    setToast({
+      message: "🗑 EPUB deleted successfully!",
+      type: "success",
+    });
+  };
+
+  /* ===================== Cancel Delete ===================== */
+  const cancelDelete = () => {
+    setDeleteId(null);
+    setShowDeleteModal(false);
   };
 
   /* ===================== Open EPUB Viewer ===================== */
@@ -88,8 +132,12 @@ export default function PDFTransformerPage() {
 
     const blob = await res.blob();
     setPdfUrl(URL.createObjectURL(blob));
-
     setLoading(false);
+
+    setToast({
+      message: "📄 PDF generated successfully!",
+      type: "success",
+    });
   };
 
   /* ===================== Download PDF ===================== */
@@ -107,30 +155,106 @@ export default function PDFTransformerPage() {
     setView("grid");
   };
 
-  /* ===================== LOADING OVERLAY (Animated) ===================== */
+  /* ===================== Custom Delete Modal ===================== */
+  const DeleteModal = () => (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        backdropFilter: "blur(3px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 99999,
+        animation: "fadeIn 0.25s ease",
+      }}
+    >
+      <div
+        style={{
+          width: "340px",
+          background: "white",
+          padding: "25px",
+          borderRadius: "14px",
+          textAlign: "center",
+          animation: "popIn 0.25s ease",
+        }}
+      >
+        <h3 style={{ marginBottom: "10px", fontSize: "20px" }}>
+          Are you sure?
+        </h3>
+        <p style={{ marginBottom: "20px", color: "#555" }}>
+          Do you really want to delete this EPUB?
+        </p>
+
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <button
+            onClick={cancelDelete}
+            style={{
+              padding: "10px 20px",
+              background: "#e5e7eb",
+              borderRadius: "8px",
+              border: "none",
+              cursor: "pointer",
+              fontWeight: 600,
+              width: "48%",
+            }}
+          >
+            Cancel
+          </button>
+
+          <button
+            onClick={confirmDelete}
+            style={{
+              padding: "10px 20px",
+              background: "#ef4444",
+              borderRadius: "8px",
+              border: "none",
+              cursor: "pointer",
+              color: "white",
+              fontWeight: 600,
+              width: "48%",
+            }}
+          >
+            Delete
+          </button>
+        </div>
+
+        <style>
+          {`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+
+            @keyframes popIn {
+              from { transform: scale(0.9); opacity: 0; }
+              to { transform: scale(1); opacity: 1; }
+            }
+          `}
+        </style>
+      </div>
+    </div>
+  );
+
+  /* ===================== LOADING OVERLAY ===================== */
   const LoadingOverlay = () => (
     <div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
+        inset: 0,
         background: "rgba(255, 255, 255, 0.85)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 9999,
-        backdropFilter: "blur(6px)",
-        animation: "fadeIn 0.3s ease",
       }}
     >
-      {/* SPINNER */}
       <div
         style={{
-          width: "80px",
-          height: "80px",
+          width: "75px",
+          height: "75px",
           border: "8px solid #d1d5db",
           borderTopColor: "#4f46e5",
           borderRadius: "50%",
@@ -138,36 +262,28 @@ export default function PDFTransformerPage() {
         }}
       ></div>
 
-      {/* ANIMATED TEXT */}
       <p
         style={{
-          marginTop: "22px",
-          fontSize: "22px",
-          fontWeight: 700,
+          marginTop: "20px",
           color: "#4f46e5",
+          fontSize: "22px",
+          fontWeight: 600,
           animation: "pulse 1.5s infinite ease-in-out",
         }}
       >
         Converting… Please wait
       </p>
 
-      {/* CSS KEYFRAMES */}
       <style>
         {`
           @keyframes spin {
-            from { transform: rotate(0deg); }
+            from { transform: rotate(0); }
             to { transform: rotate(360deg); }
           }
-
           @keyframes pulse {
-            0% { opacity: 0.4; transform: scale(0.98); }
-            50% { opacity: 1; transform: scale(1); }
-            100% { opacity: 0.4; transform: scale(0.98); }
-          }
-
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
           }
         `}
       </style>
@@ -177,8 +293,8 @@ export default function PDFTransformerPage() {
   /* ===================== RENDER ===================== */
   return (
     <div style={{ background: "#f8fafc", minHeight: "100vh" }}>
-      {/* SHOW LOADING OVERLAY */}
       {loading && <LoadingOverlay />}
+      {showDeleteModal && <DeleteModal />}
 
       {/* NAV BAR */}
       <nav
@@ -197,8 +313,9 @@ export default function PDFTransformerPage() {
         </h2>
       </nav>
 
+      {/* MAIN CONTENT */}
       <div style={{ padding: "25px" }}>
-        {/* ===================== GRID VIEW ===================== */}
+        {/* GRID MODE */}
         {view === "grid" && (
           <>
             <div
@@ -250,7 +367,7 @@ export default function PDFTransformerPage() {
               </label>
             </div>
 
-            {/* GRID */}
+            {/* EPUB GRID */}
             <div
               style={{
                 display: "grid",
@@ -270,10 +387,11 @@ export default function PDFTransformerPage() {
                     cursor: "pointer",
                   }}
                 >
+                  {/* DELETE BUTTON */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDelete(epub.id);
+                      openDeleteConfirm(epub.id);
                     }}
                     style={{
                       position: "absolute",
@@ -302,7 +420,6 @@ export default function PDFTransformerPage() {
                         borderRadius: "8px",
                       }}
                     />
-
                     <p
                       style={{
                         marginTop: "10px",
@@ -320,7 +437,7 @@ export default function PDFTransformerPage() {
           </>
         )}
 
-        {/* ===================== VIEWER ===================== */}
+        {/* VIEWER MODE */}
         {view === "viewer" && selectedEpub && (
           <div
             style={{
@@ -348,12 +465,12 @@ export default function PDFTransformerPage() {
               <FiArrowLeft /> Back to EPUBs
             </button>
 
-            {/* LEFT PANEL: EPUB VIEWER */}
+            {/* EPUB VIEWER */}
             <div
               style={{
                 background: "white",
                 borderRadius: "12px",
-                padding: "0",
+                padding: 0,
                 border: "1px solid #e5e7eb",
                 height: "100%",
                 overflow: "hidden",
@@ -362,7 +479,7 @@ export default function PDFTransformerPage() {
               <EPUBViewer file={selectedEpub.file} />
             </div>
 
-            {/* RIGHT PANEL: PDF VIEWER */}
+            {/* PDF VIEWER */}
             <div
               style={{
                 background: "white",
@@ -395,37 +512,44 @@ export default function PDFTransformerPage() {
               ) : (
                 <>
                   <h2>Converted PDF</h2>
-                  
-                  <div
-  style={{
-    width: "100%",
-    height: "100%",
-    borderRadius: "12px",
-    overflow: "hidden",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    background: "#f3f4f6",
-    padding: "0",
-  }}
->
-  <iframe
-    src={`${pdfUrl}#zoom=page-width`}
-    style={{
-      width: "100%",
-      height: "100%",
-      border: "none",
-    }}
-  ></iframe>
-</div>
 
-                  
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      borderRadius: "12px",
+                      overflow: "hidden",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      background: "#f3f4f6",
+                      padding: 0,
+                    }}
+                  >
+                    <iframe
+                      src={`${pdfUrl}#zoom=page-width`}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        border: "none",
+                      }}
+                    ></iframe>
+                  </div>
                 </>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {/* GLOBAL TOAST */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

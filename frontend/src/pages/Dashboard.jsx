@@ -8,386 +8,328 @@ import {
   FiLogOut,
   FiBookOpen,
   FiLayers,
-  FiFileText,
+  FiRepeat,
+  FiZap,
+  FiCheckCircle,
+  FiShield,
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
-
 
 export default function Dashboard() {
   const navigate = useNavigate();
 
   return (
-    <div
-      style={{
-        display: "flex",
-        width: "100%",
-        minHeight: "100vh",
-        fontFamily: "'Poppins', sans-serif",
-        background: "#f1f5f9",
-      }}
-    >
-     {/* ============================================= */}
-{/*                LEFT SIDEBAR                   */}
-{/* ============================================= */}
-<div
-  style={{
-    width: "260px",
-    background: "#0f172a",
-    color: "white",
-    display: "flex",
-    flexDirection: "column",
-    paddingTop: "20px",
-    borderRight: "1px solid #1e293b",
-    boxShadow: "4px 0 12px rgba(0,0,0,0.5)",
-    alignItems: "center",
-  }}
->
-  {/* LOGO BLOCK */}
-  <div
-    style={{
-      width: "100%",
-      textAlign: "center",
-      marginBottom: "25px",
-      paddingBottom: "20px",
-      borderBottom: "1px solid #1e293b",
-    }}
-  >
-    <img
-      src="/src/assets/S4C_Logo.png"
-      alt="logo"
-      style={{
-        width: "150px",
-        height: "auto",
-        objectFit: "contain",
-        filter: "drop-shadow(0px 2px 3px rgba(0,0,0,0.5))",
-      }}
-    />
-  </div>
+    <div style={styles.page}>
+      {/* ================= SIDEBAR ================= */}
+      <aside style={styles.sidebar}>
+        <div style={styles.logoBox}>
+          <img src="/src/assets/S4C_Logo.png" alt="logo" style={styles.logo} />
+        </div>
 
-  {/* MENU ITEMS */}
-  <SidebarItem icon={<FiHome />} title="Dashboard" active />
-  <SidebarItem
-    icon={<FiBookOpen />}
-    title="Home"
-    onClick={() => (window.location.href = "/")}
-  />
-  <SidebarItem
-    icon={<FiUser />}
-    title="Profile"
-    onClick={() => alert("Profile Coming Soon!")}
-  />
-  <SidebarItem
-    icon={<FiSettings />}
-    title="Settings"
-    onClick={() => alert("Settings Coming Soon!")}
-  />
-  <SidebarItem
-    icon={<FiHelpCircle />}
-    title="Help"
-    onClick={() => alert("Help Coming Soon!")}
-  />
-  <SidebarItem
-    icon={<FiInfo />}
-    title="About"
-    onClick={() => alert("About Coming Soon!")}
-  />
+        <SidebarItem icon={<FiHome />} title="Dashboard" active />
+        <SidebarItem
+          icon={<FiBookOpen />}
+          title="Home"
+          onClick={() => navigate("/")}
+        />
+        <SidebarItem icon={<FiUser />} title="Profile" />
+        <SidebarItem icon={<FiSettings />} title="Settings" />
+        <SidebarItem icon={<FiHelpCircle />} title="Help" />
+        <SidebarItem icon={<FiInfo />} title="About" />
 
-  <div style={{ flexGrow: 1 }}></div>
+        <div style={{ flexGrow: 1 }} />
 
-  <SidebarItem
-    icon={<FiLogOut />}
-    title="Logout" 
-    danger
-    onClick={() => (window.location.href = "/")}
-  />
-</div>
+        <SidebarItem
+          icon={<FiLogOut />}
+          title="Logout"
+          danger
+          onClick={() => navigate("/")}
+        />
+      </aside>
 
-
-      {/* ============================================= */}
-      {/*               MAIN CONTENT AREA               */}
-      {/* ============================================= */}
-      <div style={{ flexGrow: 1, marginTop: "-20px" }}>
-        {/* TOP NAV */}
+      {/* ================= MAIN ================= */}
+      <main style={styles.main}>
         <TopNavbar />
 
-        {/* MAIN SECTION */}
-        <div style={{ padding: "50px 60px" }}>
-          {/* Paragraph */}
-          <p
-            style={{
-              fontSize: "17px",
-              color: "#1e293b",
-              maxWidth: "80%",
-              lineHeight: "1.7",
-              marginBottom: "25px",
-              fontWeight: 400,
-            }}
-          >
+        <section style={styles.content}>
+          <p style={styles.intro}>
             Our Ninja series of AI-driven tools operates within the digital ecosystem
             to handle the heavy lifting of your data transformation.
           </p>
 
-          {/* Section Title */}
-          <h2
-            style={{
-              fontSize: "28px",
-              fontWeight: "700",
-              marginBottom: "30px",
-              color: "#0f172a",
-              borderLeft: "5px solid #FFA500",
-              paddingLeft: "10px",
-            }}
-          >
-            Platforms
-          </h2>
+          <h2 style={styles.sectionTitle}>Platforms</h2>
 
-          {/* TOOL GRID */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-              gap: "35px",
-              flexWrap: "wrap",
-              alignItems: "stretch",
-            }}
-          >
+          <div style={styles.grid}>
+            {/* 1 */}
             <ToolCard
-              icon={<FiFileText size={28} color="#f97316"/>}
+              icon={<FiZap />}
               title="Ninja PDF Accelerator"
               subtitle="PDF → Accessible PDF"
               description="Rapidly transforms raw PDFs into WCAG, ADA, and Section 508-compliant assets."
               link="https://app.pdfxt.com"
             />
 
+            {/* 2 */}
             <ToolCard
-              icon={<FiFileText size={28} />}
+              icon={<FiBookOpen />}
               title="Ninja EPUB Accelerator"
               subtitle="PDF → EPUB"
-              description="Converts static layouts into high-fidelity, reflowable, and fully accessible EPUBs."
+              description="Converts static layouts into high-fidelity, reflowable EPUBs."
             />
-             <ToolCard
-              icon={<FiFileText size={28} color="#f97316" />}
+
+            {/* 3 */}
+            <ToolCard
+              icon={<FiCheckCircle />}
               title="Ninja EPUB Authenticator"
               subtitle="EPUB → Accessible EPUB"
-              description="The final checkpoint; an automated QA engine ensuring 100% compliance before distribution."
-              onClick={() => (window.location.href = "/epub-accessible")}
+              description="Automated QA engine ensuring 100% compliance before distribution."
+              onClick={() => navigate("/epub-accessible")}
             />
 
+            {/* 4 */}
             <ToolCard
-              icon={<FiLayers size={28} />}
+              icon={<FiLayers />}
               title="Ninja XML Generator"
               subtitle="EPUB → XML"
-              description="Extracts and structures data into 'Single Source of Truth' XML (JATS/BITS) for multi-channel use."
-              disabled
+              description="Creates structured JATS/BITS XML for multi-channel publishing."
             />
-          
+
+            {/* 5 */}
             <ToolCard
-              icon={<FiFileText size={28} />}
+              icon={<FiRepeat />}
               title="Ninja PDF Transformer"
               subtitle="EPUB → PDF"
-              description="High-speed creation of digital-first PDFs from ePUB."
+              description="High-speed creation of digital-first PDFs."
               onClick={() => navigate("/epub-to-pdf")}
             />
+
+            {/* 6 ✅ NEW */}
+            <ToolCard
+              icon={<FiShield />}
+              title="Ninja Accessible PDF Validator"
+              subtitle="Accessible PDF Validation"
+              description="Validates accessible PDFs against WCAG, PDF/UA, and accessibility standards."
+              onClick={() => navigate("/accessiblepdfvalidator")}
+            />
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }
 
-/* ========================================================= */
-/*                        SIDEBAR ITEM                       */
-/* ========================================================= */
-function SidebarItem({ icon, title, active, disabled, danger, onClick }) {
+/* ================= COMPONENTS ================= */
+
+function SidebarItem({ icon, title, active, danger, onClick }) {
   return (
     <div
-      onClick={!disabled && onClick ? onClick : undefined}
-      style={{
-        padding: "14px 25px",
-        display: "flex",
-        alignItems: "center",
-        gap: "15px",
-        cursor: disabled ? "not-allowed" : "pointer",
-        marginBottom: "4px",
-        color: danger
-          ? "#ef4444"
-          : active
-          ? "#FFA500"
-          : disabled
-          ? "#94a3b8"
-          : "white",
-        background: active ? "#1e293b" : "transparent",
-        fontWeight: active ? "700" : "500",
-        transition: "0.2s",
-        borderLeft: active ? "4px solid #FFA500" : "4px solid transparent",
-      }}
-      onMouseOver={(e) => {
-        if (!disabled) {
-          if (danger) {
-            e.currentTarget.style.background = "#FFA500";
-            e.currentTarget.style.color = "white";
-          } else {
-            e.currentTarget.style.background = "#1e293b";
-            e.currentTarget.style.color = "#FFA500";
-          }
-        }
-      }}
-      onMouseOut={(e) => {
-        if (!active) {
-          e.currentTarget.style.background = "transparent";
-          e.currentTarget.style.color = danger ? "#ef4444" : "white";
-        }
-      }}
-    >
-      <div style={{ fontSize: "18px" }}>{icon}</div>
-      <div>{title}</div>
-    </div>
-  );
-}
-
-/* ========================================================= */
-/*                         TOOL CARD                         */
-/* ========================================================= */
-function ToolCard({ icon, title, subtitle, description, link, linkText, onClick }) {
-  const cardStyle = {
-    width: "300px",
-    padding: "25px",
-    borderRadius: "14px",
-    background: "#fff7e6",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-    border: "1px solid #fcd34d",
-    transition: "all 0.28s ease",
-    cursor: onClick || link ? "pointer" : "default",
-  };
-
-  const hoverStyle = {
-    transform: "translateY(-6px) scale(1.03)",
-    boxShadow: "0 10px 25px rgba(0,0,0,0.18)",
-    border: "1px solid #f97316",
-  };
-
-  const [style, setStyle] = React.useState(cardStyle);
-
-  return (
-    <div
-      style={style}
-      onMouseEnter={() => setStyle({ ...cardStyle, ...hoverStyle })}
-      onMouseLeave={() => setStyle(cardStyle)}
       onClick={onClick}
+      style={{
+        ...styles.sidebarItem,
+        ...(active && styles.sidebarActive),
+        ...(danger && styles.sidebarDanger),
+      }}
     >
-      {/* ICON + TITLE ROW */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-          marginBottom: "8px",
-        }}
-      >
-        <div>{icon}</div>
+      {icon}
+      <span>{title}</span>
+    </div>
+  );
+}
 
-        <h3
-          style={{
-            fontWeight: "700",
-            fontSize: "18px",
-            margin: 0,
-            color: "#000",
-          }}
-        >
-          {title}
-        </h3>
+function ToolCard({ icon, title, subtitle, description, link, onClick }) {
+  return (
+    <div
+      style={styles.card}
+      onClick={onClick}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-8px)";
+        e.currentTarget.style.boxShadow =
+          "0 20px 40px rgba(249,115,22,0.15)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow =
+          "0 10px 30px rgba(0,0,0,0.08)";
+      }}
+    >
+      {/* ICON + TITLE */}
+      <div style={styles.cardHeader}>
+        <div style={styles.iconBadge}>{icon}</div>
+        <h3 style={styles.cardTitle}>{title}</h3>
       </div>
 
-      {/* SUBTITLE */}
-      <p
-        style={{
-          margin: "0 0 10px 0",
-          fontSize: "14px",
-          fontWeight: "600",
-          color: "#444",
-        }}
-      >
-        {subtitle}
-      </p>
+      <p style={styles.cardSubtitle}>{subtitle}</p>
+      <p style={styles.cardDesc}>{description}</p>
 
-      {/* DESCRIPTION */}
-      <p style={{ margin: 0, color: "#555", lineHeight: "1.5" }}>
-        {description}
-      </p>
-
-      {/* CLICKABLE URL */}
       {link && (
-        <p
-          style={{
-            marginTop: "12px",
-            fontSize: "14px",
-            fontWeight: "600",
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            window.open(link, "_blank");
-          }}
+        <a
+          href={link}
+          target="_blank"
+          rel="noreferrer"
+          style={styles.link}
+          onClick={(e) => e.stopPropagation()}
         >
-          🔗{" "}
-          <span
-            style={{
-              color: "#f97316",
-              textDecoration: "none",
-            }}
-          >
-            {linkText || link}
-          </span>
-        </p>
+          Visit Tool →
+        </a>
       )}
     </div>
   );
 }
-/* ========================================================= */
-/*                        TOP NAVBAR                         */
+
 function TopNavbar() {
   return (
-    <div
-      style={{
-        width: "100%",
-        padding: "20px 30px",
-        background: "#0f172a",
-        boxShadow: "0 3px 10px rgba(0,0,0,0.6)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        position: "relative",
-      }}
-    >
-      {/* LEFT LOGO */}
-    
-      {/* CENTER TEXT BLOCK */}
-      <div style={{ textAlign: "center" }}>
-        {/* Main Title */}
-        <div
-          style={{
-            fontSize: "32px",
-            fontWeight: "600",
-            color: "#FFA500",
-            letterSpacing: "1px",
-            marginTop:"15px",
-          }}
-        >
-          Ninja Data Bridge
-        </div>
-
-        {/* Subtitle */}
-        <div
-          style={{
-            fontSize: "20px",
-            color: "white",
-            opacity: 0.9,
-            fontWeight: "400",
-            marginTop: "6px",
-          }}
-        >
-          A Platform for Accessible Formats
-        </div>
-      </div>
-    </div>
+    <header style={styles.topbar}>
+      <h1 style={styles.topTitle}>Ninja Data Bridge</h1>
+      <p style={styles.topSub}>A Platform for Accessible Formats</p>
+    </header>
   );
 }
+
+/* ================= STYLES ================= */
+
+const styles = {
+  page: {
+    display: "flex",
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #f8fafc, #eef2ff)",
+    fontFamily: "'Poppins', sans-serif",
+  },
+
+  sidebar: {
+    width: 240,
+    background: "#020617",
+    color: "#fff",
+    padding: "20px 0",
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  logoBox: {
+    textAlign: "center",
+    marginBottom: 30,
+  },
+
+  logo: {
+    width: 140,
+  },
+
+  sidebarItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    padding: "14px 24px",
+    cursor: "pointer",
+    opacity: 0.85,
+  },
+
+  sidebarActive: {
+    background: "#111827",
+    borderLeft: "4px solid #f97316",
+    opacity: 1,
+  },
+
+  sidebarDanger: {
+    color: "#ef4444",
+  },
+
+  main: {
+    flexGrow: 1,
+  },
+
+  topbar: {
+    padding: "28px 40px",
+    background: "linear-gradient(90deg, #020617, #0f172a)",
+    color: "#fff",
+  },
+
+  topTitle: {
+    margin: 0,
+    color: "#f97316",
+    fontSize: 30,
+  },
+
+  topSub: {
+    marginTop: 6,
+    opacity: 0.85,
+  },
+
+  content: {
+    padding: "50px 60px",
+  },
+
+  intro: {
+    maxWidth: 700,
+    lineHeight: 1.7,
+    color: "#334155",
+  },
+
+  sectionTitle: {
+    marginTop: 40,
+    marginBottom: 30,
+    fontSize: 26,
+    borderLeft: "5px solid #f97316",
+    paddingLeft: 12,
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: 30,
+  },
+
+  card: {
+    background: "rgba(255,255,255,0.92)",
+    borderRadius: 18,
+    padding: 26,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+    transition: "all 0.35s ease",
+    cursor: "pointer",
+  },
+
+  cardHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 6,
+  },
+
+  iconBadge: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    background: "#fff7ed",
+    color: "#f97316",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 22,
+  },
+
+  cardTitle: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 600,
+    color: "#0f172a",
+  },
+
+  cardSubtitle: {
+    fontSize: 13,
+    fontWeight: 600,
+    opacity: 0.7,
+  },
+
+  cardDesc: {
+    fontSize: 14,
+    lineHeight: 1.6,
+    marginTop: 10,
+    color: "#475569",
+  },
+
+  link: {
+    display: "inline-block",
+    marginTop: 14,
+    color: "#f97316",
+    fontWeight: 600,
+    textDecoration: "none",
+  },
+};
