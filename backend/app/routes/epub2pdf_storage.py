@@ -50,9 +50,14 @@ def extract_cover(epub_path: Path):
                 cover_img_href = item.attrib["href"]
                 break
 
-        # 2️⃣ Check ID pattern "cover" (but ignore XHTML) 
-                        cover_img_href = item.attrib["href"]
-                        break
+        # 2️⃣ Check ID pattern "cover" (but ignore XHTML)
+        if not cover_img_href:
+            for item in manifest_items:
+                item_id = item.attrib.get("id", "").lower()
+                media_type = item.attrib.get("media-type", "")
+                if "cover" in item_id and media_type.startswith("image"):
+                    cover_img_href = item.attrib["href"]
+                    break
 
         # 3️⃣ Fallback: first real image
         if not cover_img_href:

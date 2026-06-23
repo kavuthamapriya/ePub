@@ -24,11 +24,13 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    await database.connect()
+    # await database.connect()  # disabled: running without Postgres
+    pass
 
 @app.on_event("shutdown")
 async def shutdown():
-    await database.disconnect()
+    # await database.disconnect()  # disabled: running without Postgres
+    pass
 
 app.include_router(epub_router, prefix="/api")
 app.include_router(convert_router, prefix="/api")
