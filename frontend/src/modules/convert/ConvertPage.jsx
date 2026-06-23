@@ -13,6 +13,7 @@ import EPUBViewer from "../epub/EPUBViewer";
 import PDFViewer from "../pdf/PDFViewer";
 
 import { useConversionStore } from "../../store/useConversionStore";
+import { useToast } from "../../components/ToastHost";
 
 /* Shared glossy card */
 const card = {
@@ -27,6 +28,7 @@ const card = {
 
 export default function ConvertPage() {
   const navigate = useNavigate();
+  const toast = useToast();
 
   const {
     epubFile,
@@ -39,6 +41,9 @@ export default function ConvertPage() {
 
   const [localEpub, setLocalEpub] = useState(epubFile);
   const [localPdf, setLocalPdf] = useState(pdfFile);
+
+  const [epubUploading, setEpubUploading] = useState(false);
+  const [pdfUploading, setPdfUploading] = useState(false);
 
   const [accessibleLoading, setAccessibleLoading] = useState(false);
   const [accessibleEpubBlob, setAccessibleEpubBlob] = useState(null);
@@ -67,24 +72,32 @@ export default function ConvertPage() {
 
     setLocalEpub(file);
     setEpubFile(file);
+    setEpubUploading(true);
 
-    const fd = new FormData();
-    fd.append("epub", file);
+    try {
+      const fd = new FormData();
+      fd.append("epub", file);
 
-    const res = await fetch("http://localhost:8000/api/epub/upload", {
-      method: "POST",
-      body: fd,
-    });
+      const res = await fetch("http://localhost:8000/api/epub/upload", {
+        method: "POST",
+        body: fd,
+      });
 
-    const data = await res.json();
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      const data = await res.json();
+      if (!data.book_id) throw new Error("Server did not return a book id");
 
-    if (!data.book_id) {
-      alert("EPUB upload failed");
-      return;
+      setBookId(data.book_id);
+      toast.success(`EPUB uploaded — running accessibility validation…`);
+
+      await handleQcUpload(file, data.book_id);
+      toast.success("Validation complete. See errors, warnings and passes below.");
+    } catch (err) {
+      console.error("EPUB upload failed:", err);
+      toast.error(`EPUB upload failed: ${err.message}`);
+    } finally {
+      setEpubUploading(false);
     }
-
-    setBookId(data.book_id);
-    await handleQcUpload(file, data.book_id);
   }
 
   // ======================================================
@@ -95,24 +108,34 @@ export default function ConvertPage() {
 
     const { bookId } = useConversionStore.getState();
     if (!bookId) {
-      alert("Upload EPUB first — bookId missing.");
+      toast.warning("Upload the EPUB first — the reference PDF attaches to it.");
       return;
     }
 
     setLocalPdf(file);
     setPdfFile(file);
+    setPdfUploading(true);
 
-    const fd = new FormData();
-    fd.append("pdf", file);
-    fd.append("book_id", bookId);
+    try {
+      const fd = new FormData();
+      fd.append("pdf", file);
+      fd.append("book_id", bookId);
 
-    const res = await fetch("http://localhost:8000/api/pdf/upload", {
-      method: "POST",
-      body: fd,
-    });
+      const res = await fetch("http://localhost:8000/api/pdf/upload", {
+        method: "POST",
+        body: fd,
+      });
 
-    const data = await res.json();
-    if (data.pdf_id) setPdfId(data.pdf_id);
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      const data = await res.json();
+      if (data.pdf_id) setPdfId(data.pdf_id);
+      toast.success("Reference PDF uploaded.");
+    } catch (err) {
+      console.error("PDF upload failed:", err);
+      toast.error(`PDF upload failed: ${err.message}`);
+    } finally {
+      setPdfUploading(false);
+    }
   }
 
   // ======================================================
@@ -140,10 +163,12 @@ export default function ConvertPage() {
   //  ♿ Convert to Accessible EPUB
   // ======================================================
   async function handleConvertAccessible() {
-    const { bookId } = useConversionStore.getState();
+    const { bookId, setAccessibleEpubBlob: persistBlob } = useConversionStore.getState();
 
-    if (!bookId) return alert("Upload EPUB first — no bookId.");
-    if (!localEpub) return alert("Upload EPUB first — file missing.");
+    if (!bookId || !localEpub) {
+      toast.warning("Upload an EPUB before running the conversion.");
+      return;
+    }
 
     setAccessibleLoading(true);
 
@@ -159,14 +184,14 @@ export default function ConvertPage() {
       });
 
       if (!res.ok) {
-        console.error("AUTO-FIX error:", await res.text());
-        throw new Error("Auto-fix failed");
+        const detail = await res.text();
+        console.error("AUTO-FIX error:", detail);
+        throw new Error(`Auto-fix failed (${res.status})`);
       }
 
       const data = await res.json();
-      if (!data.epub_b64) return alert("AutoFix failed — no EPUB returned!");
+      if (!data.epub_b64) throw new Error("Server returned no EPUB");
 
-      // Base64 → Blob
       const binary = atob(data.epub_b64);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -176,13 +201,13 @@ export default function ConvertPage() {
 
       setAccessibleEpubBlob(blob);
       setAccessibleEpubUrl(url);
+      if (persistBlob) persistBlob(blob);
       setPreviewMode("accessible");
 
-      alert("Accessible EPUB generated ✔");
-
+      toast.success("Accessible EPUB generated. Preview on the right; download via the button below.");
     } catch (err) {
       console.error("AutoFix failed:", err);
-      alert("Conversion failed ❌");
+      toast.error(err.message || "Conversion failed");
     } finally {
       setAccessibleLoading(false);
     }
@@ -285,7 +310,12 @@ export default function ConvertPage() {
                 }}
               >
                 <FiFile />
-                {localEpub.name}
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {localEpub.name}
+                </span>
+                {epubUploading && (
+                  <span style={{ color: "#f97316", fontWeight: 600 }}>Uploading…</span>
+                )}
               </div>
             )}
           </div>
@@ -330,7 +360,12 @@ export default function ConvertPage() {
                 }}
               >
                 <FiFile />
-                {localPdf.name}
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {localPdf.name}
+                </span>
+                {pdfUploading && (
+                  <span style={{ color: "#f97316", fontWeight: 600 }}>Uploading…</span>
+                )}
               </div>
             )}
           </div>

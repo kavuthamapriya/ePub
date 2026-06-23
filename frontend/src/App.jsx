@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 
 import TopNav from "./components/TopNav";
+import ToastHost from "./components/ToastHost";
 import ConvertPage from "./modules/convert/ConvertPage";
 import TagMappingTool from "./modules/mapping/TagMappingTool";
 import TagMappingPage from "./modules/mapping/TagMappingPage";
@@ -12,7 +13,7 @@ import { useConversionStore } from "./store/useConversionStore";
 const pageWrapper = {
   background: "linear-gradient(180deg,#f9fafb,#f3f4f6)",
   minHeight: "100vh",
-  paddingTop: "100px",
+  paddingTop: "92px",
   paddingLeft: "20px",
   paddingRight: "20px",
   paddingBottom: "40px",
@@ -41,6 +42,7 @@ export default function App() {
   }, [location.pathname]);
 
   return (
+    <ToastHost>
     <div style={pageWrapper}>
       <TopNav
         goConvert={() => scrollTo(convertRef)}
@@ -130,5 +132,6 @@ export default function App() {
         <Route path="report" element={<div />} />
       </Routes>
     </div>
+    </ToastHost>
   );
 }
